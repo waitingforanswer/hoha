@@ -34,7 +34,7 @@ interface FamilyMember {
   address: string | null;
   gender: string | null;
   is_primary_lineage?: boolean | null;
-  lineage_type?: LineageType;
+  lineage_type?: string | null;
 }
 
 interface FamilyTreeNodeProps {
@@ -65,8 +65,11 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
   const isFemale = member.gender === "female";
   
   // Determine lineage type
-  const lineageType: LineageType = member.lineage_type || 
+  const rawLineageType = member.lineage_type || 
     (member.is_primary_lineage === false ? 'spouse' : 'primary');
+  const lineageType: LineageType = ['primary', 'spouse', 'maternal'].includes(rawLineageType) 
+    ? rawLineageType as LineageType 
+    : 'primary';
   
   const isPrimaryLineage = lineageType === 'primary';
   const isMaternalLineage = lineageType === 'maternal';
