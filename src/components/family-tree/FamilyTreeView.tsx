@@ -116,6 +116,8 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -143,8 +145,13 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     }
   };
   
-  // Handle mouse wheel zoom
+  // Handle mouse wheel zoom - requires Ctrl/Cmd key
   const handleWheel = useCallback((e: WheelEvent) => {
+    // Only zoom if Ctrl (Windows) or Meta/Cmd (Mac) is held
+    if (!e.ctrlKey && !e.metaKey) {
+      return; // Allow normal scrolling
+    }
+    
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setZoom(prev => Math.max(0.3, Math.min(3, prev + delta)));
@@ -174,6 +181,26 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
   }, []);
+
+  // Handle minimap click to navigate
+  const handleMinimapClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+    
+    // Calculate relative position (0-1)
+    const relativeX = clickX / rect.width;
+    const relativeY = clickY / rect.height;
+    
+    // Calculate new position to center the view on clicked point
+    const scaledContentWidth = contentSize.width * zoom;
+    const scaledContentHeight = contentSize.height * zoom;
+    
+    const newX = -(relativeX * scaledContentWidth - containerSize.width / 2);
+    const newY = -(relativeY * scaledContentHeight - containerSize.height / 2);
+    
+    setPosition({ x: newX, y: newY });
+  }, [contentSize, containerSize, zoom]);
   
   // Add wheel event listener
   useEffect(() => {
@@ -186,7 +213,36 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       container.removeEventListener("wheel", handleWheel);
     };
   }, [handleWheel]);
-  
+
+  // Update content and container sizes
+  useEffect(() => {
+    const updateSizes = () => {
+      if (contentRef.current) {
+        setContentSize({
+          width: contentRef.current.scrollWidth,
+          height: contentRef.current.scrollHeight
+        });
+      }
+      if (containerRef.current) {
+        setContainerSize({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight
+        });
+      }
+    };
+    
+    updateSizes();
+    window.addEventListener('resize', updateSizes);
+    
+    // Update after a short delay to ensure content is rendered
+    const timer = setTimeout(updateSizes, 100);
+    
+    return () => {
+      window.removeEventListener('resize', updateSizes);
+      clearTimeout(timer);
+    };
+  }, [members, zoom, isFullscreen]);
+
   // Handle pinch zoom on mobile
   useEffect(() => {
     const container = containerRef.current;
@@ -375,11 +431,11 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
           onClick={toggleFullscreen}
           title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
         >
-          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
         </Button>
         <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
           <Move className="h-3 w-3" />
-          <span className="hidden sm:inline">Giữ chuột để kéo</span>
+          <span className="hidden sm:inline">Giữ chuột để kéo | Ctrl/⌘ + Scroll để zoom</span>
         </div>
       </div>
       
@@ -410,6 +466,39 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
             ))}
           </div>
         </div>
+
+        {/* Mini-map */}
+        {(zoom > 1 || position.x !== 0 || position.y !== 0) && contentSize.width > 0 && (
+          <div 
+            className="absolute bottom-4 right-4 z-10 bg-background/95 backdrop-blur-sm border rounded-lg shadow-lg p-2 cursor-pointer"
+            onClick={handleMinimapClick}
+          >
+            <div className="text-[10px] text-muted-foreground mb-1 text-center">Mini-map</div>
+            <div 
+              className="relative bg-muted/50 rounded border overflow-hidden"
+              style={{ 
+                width: 120, 
+                height: Math.min(80, (contentSize.height / contentSize.width) * 120) || 60 
+              }}
+            >
+              {/* Content representation */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-lineage-primary opacity-50" />
+              </div>
+              
+              {/* Viewport indicator */}
+              <div 
+                className="absolute border-2 border-primary rounded bg-primary/10 pointer-events-none"
+                style={{
+                  width: Math.max(10, (containerSize.width / (contentSize.width * zoom)) * 120),
+                  height: Math.max(8, (containerSize.height / (contentSize.height * zoom)) * (contentSize.height / contentSize.width * 120)),
+                  left: Math.max(0, Math.min(120 - 10, (-position.x / (contentSize.width * zoom)) * 120)),
+                  top: Math.max(0, Math.min(60, (-position.y / (contentSize.height * zoom)) * (contentSize.height / contentSize.width * 120)))
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Legend */}
