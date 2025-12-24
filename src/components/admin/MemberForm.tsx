@@ -411,8 +411,8 @@ const MemberForm = ({
                   </SelectItem>
                   <SelectItem value="maternal">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded border-2 border-lineage-maternal" />
-                      <span>Con ngoại tộc (mẹ họ Hà, theo họ bố)</span>
+                      <div className="w-3 h-3 rounded border-2 border-foreground/50" />
+                      <span>Khác</span>
                     </div>
                   </SelectItem>
                 </SelectContent>

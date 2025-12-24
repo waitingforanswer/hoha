@@ -314,6 +314,9 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     // Check if children continue the bloodline (họ Hà)
     const childrenContinueBloodline = primaryMember.is_primary_lineage !== false && primaryMember.gender === 'male';
     
+    // Check if any children are "Khác" (maternal lineage type)
+    const hasOtherTypeChildren = children.some(child => child.lineage_type === 'maternal');
+    
     return (
       <div key={primaryMember.id} className="flex flex-col items-center gap-3">
         {/* Couple display */}
@@ -359,15 +362,18 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
               )}
               
               {children.map(child => {
-                // Only recursively render primary lineage children
-                if (child.is_primary_lineage !== false) {
+                const isOtherType = child.lineage_type === 'maternal';
+                // Only recursively render primary lineage children or "Khác" type
+                if (child.is_primary_lineage !== false || isOtherType) {
                   return (
                     <div key={child.id} className="relative flex flex-col items-center">
                       <div className={cn(
-                        "-mt-3",
-                        childrenContinueBloodline 
-                          ? "w-[3px] h-6 bg-lineage-primary" 
-                          : "w-0.5 h-6 border-l-2 border-dashed border-lineage-faded"
+                        "-mt-3 h-6",
+                        isOtherType 
+                          ? "w-[1px] bg-foreground/50" 
+                          : childrenContinueBloodline 
+                            ? "w-[3px] bg-lineage-primary" 
+                            : "w-0.5 border-l-2 border-dashed border-lineage-faded"
                       )} />
                       {renderFamilyTree(child, processedIds)}
                     </div>
