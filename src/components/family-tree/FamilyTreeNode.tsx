@@ -70,34 +70,29 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
   
   const roleLabel = getRoleLabel();
   
-  // Spouse nodes are smaller
-  const nodeSize = isSpouse || !isPrimaryLineage ? "small" : "normal";
-  
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 rounded-lg bg-card transition-all hover:shadow-md relative",
-        // Size based on primary/spouse
-        nodeSize === "small" ? "p-2 min-w-[100px]" : "p-3 min-w-[140px]",
+        "flex flex-col items-center gap-2 p-3 rounded-lg bg-card transition-all hover:shadow-md relative",
         // Border styling based on lineage
         isPrimaryLineage 
           ? "border-2 border-lineage-primary shadow-sm" 
           : "border-2 border-lineage-secondary-light border-dashed",
-        isDeceased && "opacity-70"
+        isDeceased && "opacity-70",
+        orientation === "horizontal" ? "min-w-[140px]" : "min-w-[120px]"
       )}
     >
       {/* Gender icon - top right */}
       <div className={cn(
-        "absolute -top-2 -right-2 rounded-full shadow-sm flex items-center justify-center",
-        nodeSize === "small" ? "w-5 h-5" : "w-6 h-6",
+        "absolute -top-2 -right-2 rounded-full p-1 shadow-sm",
         isMale ? "bg-blue-500 text-white" : isFemale ? "bg-pink-500 text-white" : "bg-muted text-muted-foreground"
       )}>
         {isMale ? (
-          <MaleIcon className={nodeSize === "small" ? "h-2.5 w-2.5" : "h-3 w-3"} />
+          <MaleIcon className="h-3 w-3" />
         ) : isFemale ? (
-          <FemaleIcon className={nodeSize === "small" ? "h-2.5 w-2.5" : "h-3 w-3"} />
+          <FemaleIcon className="h-3 w-3" />
         ) : (
-          <User className={nodeSize === "small" ? "h-2.5 w-2.5" : "h-3 w-3"} />
+          <User className="h-3 w-3" />
         )}
       </div>
 
@@ -110,15 +105,10 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
       
       <Link to={`/member/${member.id}`} className="group">
         <Avatar className={cn(
-          "border-2 transition-transform group-hover:scale-105",
-          nodeSize === "small" ? "h-12 w-12" : "h-16 w-16",
+          "h-16 w-16 border-2 transition-transform group-hover:scale-105",
           isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : "border-lineage-secondary-light"
         )}>
-          <AvatarImage 
-            src={member.avatar_url || undefined} 
-            alt={member.full_name}
-            className="object-cover object-center"
-          />
+          <AvatarImage src={member.avatar_url || undefined} alt={member.full_name} />
           <AvatarFallback className={cn(
             isDeceased 
               ? "bg-muted text-muted-foreground" 
@@ -126,7 +116,7 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
                 ? "bg-lineage-primary/10 text-lineage-primary" 
                 : "bg-lineage-secondary/10 text-lineage-secondary"
           )}>
-            <User className={nodeSize === "small" ? "h-5 w-5" : "h-6 w-6"} />
+            <User className="h-6 w-6" />
           </AvatarFallback>
         </Avatar>
       </Link>
@@ -135,16 +125,10 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
         <Link 
           to={`/member/${member.id}`}
           className={cn(
-            "text-sm hover:underline block text-center leading-tight",
-            nodeSize === "small" ? "max-w-[90px]" : "max-w-[130px]",
+            "text-sm hover:underline block truncate max-w-[120px]",
             isPrimaryLineage ? "font-semibold text-lineage-primary" : "font-medium text-foreground",
             isDeceased && "opacity-70"
           )}
-          style={{ 
-            wordBreak: 'break-word',
-            overflowWrap: 'break-word',
-            hyphens: 'auto'
-          }}
         >
           {member.full_name}
         </Link>
@@ -160,17 +144,11 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
         
         {member.address && (
           <p className={cn(
-            "text-xs flex items-center justify-center gap-1",
-            nodeSize === "small" ? "max-w-[90px]" : "max-w-[130px]",
+            "text-xs flex items-center justify-center gap-1 truncate max-w-[120px]",
             isDeceased ? "text-muted-foreground/70" : "text-muted-foreground"
-          )}
-          style={{ 
-            wordBreak: 'break-word',
-            overflowWrap: 'break-word'
-          }}
-          >
+          )}>
             <MapPin className="h-3 w-3 flex-shrink-0" />
-            <span className="line-clamp-2">{member.address}</span>
+            <span className="truncate">{member.address}</span>
           </p>
         )}
       </div>
