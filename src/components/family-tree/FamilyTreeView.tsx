@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { FamilyGroupNode } from "./FamilyGroupNode";
-import { ZoomIn, ZoomOut, RotateCcw, MonitorSmartphone, Monitor, Heart } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, MonitorSmartphone, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -188,8 +188,8 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       primaryMember.gender === 'female' ? primaryMember.id : spouse?.id || null
     );
     
-    // Filter to only primary lineage children for the main tree
-    const primaryChildren = children.filter(c => c.is_primary_lineage !== false);
+    // Check if children continue the bloodline (họ Hà)
+    const childrenContinueBloodline = primaryMember.is_primary_lineage !== false && primaryMember.gender === 'male';
     
     return (
       <FamilyGroupNode
@@ -206,11 +206,20 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
                 return (
                   <div key={child.id} className="relative flex flex-col items-center">
                     {orientation === "vertical" && (
-                      <div className="w-0.5 h-4 bg-border" />
+                      <div className={cn(
+                        "-mt-3",
+                        childrenContinueBloodline 
+                          ? "w-[3px] h-6 bg-lineage-primary" 
+                          : "w-0.5 h-6 border-l-2 border-dashed border-lineage-faded"
+                      )} />
                     )}
                     {orientation === "horizontal" && (
                       <div className="flex items-center">
-                        <div className="w-4 h-0.5 bg-border" />
+                        <div className={cn(
+                          childrenContinueBloodline 
+                            ? "w-6 h-[3px] bg-lineage-primary" 
+                            : "w-6 h-0.5 border-t-2 border-dashed border-lineage-faded"
+                        )} />
                       </div>
                     )}
                     {renderFamilyTree(child, processedIds)}
@@ -309,14 +318,27 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       </div>
       
       {/* Legend */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap p-3 bg-muted/50 rounded-lg">
+        <span className="font-medium text-foreground">Chú thích:</span>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border bg-card" />
-          <span>Còn sống</span>
+          <div className="w-6 h-4 rounded border-2 border-lineage-primary bg-card" />
+          <span>Họ Hà (huyết thống)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border bg-card opacity-60 grayscale" />
-          <span>Đã mất</span>
+          <div className="w-6 h-4 rounded border-2 border-dashed border-lineage-secondary-light bg-card" />
+          <span>Dâu/Rể</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-[3px] bg-lineage-primary" />
+          <span>Đường huyết thống</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
+          <span>Đường hôn nhân</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-faded" />
+          <span>Đường đứt mạch</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
@@ -331,14 +353,8 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
           <span>Nữ</span>
         </div>
         <div className="flex items-center gap-2">
-          <Heart className="h-4 w-4 text-primary/50 fill-primary/20" />
-          <span>Vợ chồng</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="px-1.5 py-0.5 bg-secondary text-secondary-foreground text-[10px] rounded-full">
-            Dâu/Rể
-          </div>
-          <span>Không thuộc họ Hà</span>
+          <div className="w-4 h-4 rounded border bg-card opacity-60 grayscale" />
+          <span>Đã mất</span>
         </div>
       </div>
     </div>

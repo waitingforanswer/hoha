@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Users, Heart } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { FamilyTreeNode } from "./FamilyTreeNode";
 import { cn } from "@/lib/utils";
 
@@ -35,14 +35,24 @@ export function FamilyGroupNode({
   onRenderChildren
 }: FamilyGroupNodeProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const hasFamily = spouse || children.length > 0;
+  const hasChildren = children.length > 0;
   
-  const familyTitle = `Gia đình ${primaryMember.gender === 'male' ? 'anh' : 'chị'} ${primaryMember.full_name.split(' ').slice(-2).join(' ')}`;
+  // Check if primary member is the bloodline (họ Hà)
+  const isPrimaryBloodline = primaryMember.is_primary_lineage !== false;
+  
+  // Get direct children count (not including spouses of children)
+  const directChildrenCount = children.filter(c => 
+    c.father_id === primaryMember.id || c.mother_id === primaryMember.id
+  ).length;
+
+  // Determine if children continue the bloodline
+  // Children continue bloodline if the primary member is from the Hà family
+  const childrenContinueBloodline = isPrimaryBloodline && primaryMember.gender === 'male';
 
   if (orientation === "horizontal") {
     return (
       <div className="flex items-start gap-2">
-        {/* Family group header */}
+        {/* Family group */}
         <div className="flex flex-col items-center gap-2">
           {/* Couple display */}
           <div className="flex items-center gap-2">
@@ -50,11 +60,9 @@ export function FamilyGroupNode({
             
             {spouse && (
               <>
-                {/* Marriage connector */}
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-0.5 bg-primary/50" />
-                  <Heart className="h-4 w-4 text-primary/50 fill-primary/20" />
-                  <div className="w-4 h-0.5 bg-primary/50" />
+                {/* Marriage connector - dashed gray line */}
+                <div className="flex items-center">
+                  <div className="w-8 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
                 </div>
                 <FamilyTreeNode member={spouse} orientation={orientation} isSpouse />
               </>
@@ -62,39 +70,57 @@ export function FamilyGroupNode({
           </div>
           
           {/* Expand/Collapse button */}
-          {hasFamily && children.length > 0 && (
+          {hasChildren && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-xs",
-                "bg-muted hover:bg-muted/80 transition-colors",
-                "text-muted-foreground hover:text-foreground"
+                "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                "border-2",
+                isExpanded 
+                  ? "bg-lineage-primary text-white border-lineage-primary" 
+                  : "bg-card text-lineage-primary border-lineage-primary hover:bg-lineage-primary/10"
               )}
             >
               {isExpanded ? (
-                <ChevronDown className="h-3 w-3" />
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" />
+                  <span>Thu gọn</span>
+                </>
               ) : (
-                <ChevronRight className="h-3 w-3" />
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  <span>{directChildrenCount} con</span>
+                </>
               )}
-              <Users className="h-3 w-3" />
-              <span>{children.length} con</span>
             </button>
           )}
         </div>
         
         {/* Children */}
-        {isExpanded && children.length > 0 && (
+        {isExpanded && hasChildren && (
           <div className="flex items-start">
-            {/* Connector to children */}
+            {/* Connector to children - bloodline or faded based on lineage */}
             <div className="flex items-center self-stretch">
-              <div className="w-4 h-0.5 bg-border" />
+              <div className={cn(
+                "w-6 h-0.5",
+                childrenContinueBloodline 
+                  ? "bg-lineage-primary border-none" 
+                  : "border-t-2 border-dashed border-lineage-faded"
+              )} 
+              style={childrenContinueBloodline ? { height: '3px' } : {}}
+              />
             </div>
             <div className="flex flex-col gap-4">
               {/* Vertical line connecting children */}
               <div className="relative">
                 {children.length > 1 && (
                   <div 
-                    className="absolute left-0 top-0 bottom-0 w-0.5 bg-border"
+                    className={cn(
+                      "absolute left-0 top-0 bottom-0",
+                      childrenContinueBloodline 
+                        ? "w-[3px] bg-lineage-primary" 
+                        : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+                    )}
                   />
                 )}
                 <div className="flex flex-col gap-4">
@@ -110,18 +136,16 @@ export function FamilyGroupNode({
   
   // Vertical orientation (default)
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-3">
       {/* Couple display */}
       <div className="flex items-center gap-2">
         <FamilyTreeNode member={primaryMember} orientation={orientation} />
         
         {spouse && (
           <>
-            {/* Marriage connector */}
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-primary/50" />
-              <Heart className="h-4 w-4 text-primary/50 fill-primary/20" />
-              <div className="w-3 h-0.5 bg-primary/50" />
+            {/* Marriage connector - dashed gray line */}
+            <div className="flex items-center">
+              <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
             </div>
             <FamilyTreeNode member={spouse} orientation={orientation} isSpouse />
           </>
@@ -129,37 +153,55 @@ export function FamilyGroupNode({
       </div>
       
       {/* Expand/Collapse button */}
-      {hasFamily && children.length > 0 && (
+      {hasChildren && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className={cn(
-            "flex items-center gap-1 px-3 py-1.5 rounded-md text-xs",
-            "bg-muted hover:bg-muted/80 transition-colors",
-            "text-muted-foreground hover:text-foreground"
+            "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+            "border-2 shadow-sm",
+            isExpanded 
+              ? "bg-lineage-primary text-white border-lineage-primary" 
+              : "bg-card text-lineage-primary border-lineage-primary hover:bg-lineage-primary/10"
           )}
         >
           {isExpanded ? (
-            <ChevronDown className="h-3 w-3" />
+            <>
+              <ChevronUp className="h-3.5 w-3.5" />
+              <span>Thu gọn</span>
+            </>
           ) : (
-            <ChevronRight className="h-3 w-3" />
+            <>
+              <ChevronDown className="h-3.5 w-3.5" />
+              <span>{directChildrenCount} con</span>
+            </>
           )}
-          <Users className="h-3 w-3" />
-          <span>{familyTitle} ({children.length} con)</span>
         </button>
       )}
       
       {/* Children */}
-      {isExpanded && children.length > 0 && (
+      {isExpanded && hasChildren && (
         <div className="relative">
-          {/* Connector line from parent to children */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-4 bg-border -translate-y-full" />
+          {/* Connector line from parent to children - bloodline or faded */}
+          <div 
+            className={cn(
+              "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full",
+              childrenContinueBloodline 
+                ? "w-[3px] h-3 bg-lineage-primary" 
+                : "w-0.5 h-3 border-l-2 border-dashed border-lineage-faded"
+            )}
+          />
           
-          <div className="flex gap-4 pt-4 relative">
+          <div className="flex gap-6 pt-3 relative">
             {/* Horizontal line connecting children */}
             {children.length > 1 && (
               <div 
-                className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 bg-border"
-                style={{ width: `calc(100% - 60px)` }}
+                className={cn(
+                  "absolute top-0 left-1/2 -translate-x-1/2",
+                  childrenContinueBloodline 
+                    ? "h-[3px] bg-lineage-primary" 
+                    : "h-0.5 border-t-2 border-dashed border-lineage-faded"
+                )}
+                style={{ width: `calc(100% - 80px)` }}
               />
             )}
             
