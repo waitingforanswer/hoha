@@ -72,6 +72,7 @@ export default {
           "secondary-light": "hsl(var(--lineage-secondary-light))",
           marriage: "hsl(var(--lineage-marriage))",
           faded: "hsl(var(--lineage-faded))",
+          maternal: "hsl(var(--lineage-maternal))",
         },
       },
       borderRadius: {
