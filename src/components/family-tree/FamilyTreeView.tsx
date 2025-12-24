@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { FamilyTreeNode } from "./FamilyTreeNode";
-import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -112,21 +112,80 @@ function buildFamilyTree(members: FamilyMember[]) {
 export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const isMobile = useIsMobile();
   const [zoom, setZoom] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
   
   const { rootMembers, memberMap, getChildrenForCouple, getSpouse } = buildFamilyTree(members);
   
   const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.1, 2));
+    setZoom(prev => Math.min(prev + 0.1, 3));
   };
   
   const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.1, 0.5));
+    setZoom(prev => Math.max(prev - 0.1, 0.3));
   };
   
   const handleResetZoom = () => {
     setZoom(1);
+    setPosition({ x: 0, y: 0 });
   };
+  
+  const toggleFullscreen = () => {
+    setIsFullscreen(prev => !prev);
+    if (!isFullscreen) {
+      setPosition({ x: 0, y: 0 });
+    }
+  };
+  
+  // Handle mouse wheel zoom
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom(prev => Math.max(0.3, Math.min(3, prev + delta)));
+  }, []);
+  
+  // Handle mouse drag
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Don't start dragging if clicking on a link or button
+    if ((e.target as HTMLElement).closest('a, button')) return;
+    
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    });
+  }, [position]);
+  
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  }, [isDragging, dragStart]);
+  
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+  
+  // Add wheel event listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+    };
+  }, [handleWheel]);
   
   // Handle pinch zoom on mobile
   useEffect(() => {
@@ -154,7 +213,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
           e.touches[0].clientY - e.touches[1].clientY
         );
         const scale = currentDistance / initialDistance;
-        const newZoom = Math.max(0.5, Math.min(2, initialZoom * scale));
+        const newZoom = Math.max(0.3, Math.min(3, initialZoom * scale));
         setZoom(newZoom);
       }
     };
@@ -167,6 +226,18 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       container.removeEventListener("touchmove", handleTouchMove);
     };
   }, [zoom]);
+
+  // Handle escape key to exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
   
   // Recursive function to render family tree - always vertical, no expand/collapse
   const renderFamilyTree = (primaryMember: FamilyMember, processedIds: Set<string>): React.ReactNode => {
@@ -260,16 +331,20 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   }
   
   const processedIds = new Set<string>();
-  
-  return (
-    <div className="space-y-4">
-      {/* Controls - only zoom, no orientation toggle */}
-      <div className="flex items-center gap-2">
+
+  const treeContent = (
+    <>
+      {/* Controls */}
+      <div className={cn(
+        "flex items-center gap-2 flex-wrap",
+        isFullscreen && "absolute top-4 left-4 z-10 bg-background/90 backdrop-blur-sm p-2 rounded-lg shadow-lg"
+      )}>
         <Button
           variant="outline"
           size="icon"
           onClick={handleZoomOut}
-          disabled={zoom <= 0.5}
+          disabled={zoom <= 0.3}
+          title="Thu nhỏ"
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
@@ -280,7 +355,8 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
           variant="outline"
           size="icon"
           onClick={handleZoomIn}
-          disabled={zoom >= 2}
+          disabled={zoom >= 3}
+          title="Phóng to"
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
@@ -288,19 +364,45 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
           variant="outline"
           size="icon"
           onClick={handleResetZoom}
+          title="Đặt lại"
         >
           <RotateCcw className="h-4 w-4" />
         </Button>
+        <div className="w-px h-6 bg-border mx-1" />
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
+        >
+          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </Button>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
+          <Move className="h-3 w-3" />
+          <span className="hidden sm:inline">Giữ chuột để kéo</span>
+        </div>
       </div>
       
       {/* Tree container */}
       <div 
         ref={containerRef}
-        className="overflow-auto border rounded-lg bg-muted/30 min-h-[400px] max-h-[70vh]"
+        className={cn(
+          "overflow-hidden border rounded-lg bg-muted/30 select-none",
+          isFullscreen ? "flex-1" : "min-h-[400px] max-h-[70vh]",
+          isDragging ? "cursor-grabbing" : "cursor-grab"
+        )}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
       >
         <div 
-          className="p-8 inline-block min-w-full transition-transform origin-top-left"
-          style={{ transform: `scale(${zoom})` }}
+          ref={contentRef}
+          className="p-8 inline-block min-w-full transition-transform duration-75"
+          style={{ 
+            transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+            transformOrigin: 'top left'
+          }}
         >
           <div className="flex flex-col items-center gap-8">
             {rootMembers.map((rootMember) => (
@@ -311,7 +413,10 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       </div>
       
       {/* Legend */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap p-3 bg-muted/50 rounded-lg">
+      <div className={cn(
+        "flex items-center gap-4 text-sm text-muted-foreground flex-wrap p-3 bg-muted/50 rounded-lg",
+        isFullscreen && "absolute bottom-4 left-4 right-4 z-10 bg-background/90 backdrop-blur-sm shadow-lg"
+      )}>
         <span className="font-medium text-foreground">Chú thích:</span>
         <div className="flex items-center gap-2">
           <div className="w-6 h-4 rounded border-2 border-lineage-primary bg-card" />
@@ -324,6 +429,10 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
         <div className="flex items-center gap-2">
           <div className="w-6 h-4 rounded border-2 border-lineage-maternal bg-card" />
           <span>Con ngoại tộc</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-4 rounded border-2 border-lineage-tertiary bg-card" />
+          <span>Ngoại tộc (con gái đi lấy chồng)</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-6 h-[3px] bg-lineage-primary" />
@@ -354,6 +463,24 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
           <span>Đã mất</span>
         </div>
       </div>
+    </>
+  );
+  
+  // Fullscreen mode
+  if (isFullscreen) {
+    return (
+      <div 
+        ref={fullscreenRef}
+        className="fixed inset-0 z-50 bg-background flex flex-col p-4 gap-4"
+      >
+        {treeContent}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-4">
+      {treeContent}
     </div>
   );
 }
