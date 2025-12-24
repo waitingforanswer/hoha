@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { FamilyTreeNode } from "./FamilyTreeNode";
-import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move, Search, X, ChevronUp, ChevronDown } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -120,98 +119,11 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   
-  // Search state
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState<FamilyMember[]>([]);
-  const [currentResultIndex, setCurrentResultIndex] = useState(0);
-  const [highlightedMemberId, setHighlightedMemberId] = useState<string | null>(null);
-  
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const fullscreenRef = useRef<HTMLDivElement>(null);
-  const memberRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   
   const { rootMembers, memberMap, getChildrenForCouple, getSpouse } = buildFamilyTree(members);
-  
-  // Search members
-  const handleSearch = useCallback((term: string) => {
-    setSearchTerm(term);
-    if (!term.trim()) {
-      setSearchResults([]);
-      setHighlightedMemberId(null);
-      setCurrentResultIndex(0);
-      return;
-    }
-    
-    const lowerTerm = term.toLowerCase();
-    const results = members.filter(m => 
-      m.full_name.toLowerCase().includes(lowerTerm) ||
-      m.address?.toLowerCase().includes(lowerTerm)
-    );
-    
-    setSearchResults(results);
-    setCurrentResultIndex(0);
-    
-    if (results.length > 0) {
-      setHighlightedMemberId(results[0].id);
-      scrollToMember(results[0].id);
-    } else {
-      setHighlightedMemberId(null);
-    }
-  }, [members]);
-  
-  // Scroll to member
-  const scrollToMember = useCallback((memberId: string) => {
-    const memberElement = memberRefs.current.get(memberId);
-    if (!memberElement || !containerRef.current || !contentRef.current) return;
-    
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const memberRect = memberElement.getBoundingClientRect();
-    const contentRect = contentRef.current.getBoundingClientRect();
-    
-    // Calculate member position relative to content (without transform)
-    const memberX = (memberRect.left - contentRect.left) / zoom;
-    const memberY = (memberRect.top - contentRect.top) / zoom;
-    
-    // Calculate new position to center the member
-    const newX = -(memberX * zoom - containerRect.width / 2 + memberRect.width / 2);
-    const newY = -(memberY * zoom - containerRect.height / 2 + memberRect.height / 2);
-    
-    setPosition({ x: newX, y: newY });
-  }, [zoom]);
-  
-  // Navigate between search results
-  const goToNextResult = useCallback(() => {
-    if (searchResults.length === 0) return;
-    const nextIndex = (currentResultIndex + 1) % searchResults.length;
-    setCurrentResultIndex(nextIndex);
-    setHighlightedMemberId(searchResults[nextIndex].id);
-    scrollToMember(searchResults[nextIndex].id);
-  }, [searchResults, currentResultIndex, scrollToMember]);
-  
-  const goToPrevResult = useCallback(() => {
-    if (searchResults.length === 0) return;
-    const prevIndex = (currentResultIndex - 1 + searchResults.length) % searchResults.length;
-    setCurrentResultIndex(prevIndex);
-    setHighlightedMemberId(searchResults[prevIndex].id);
-    scrollToMember(searchResults[prevIndex].id);
-  }, [searchResults, currentResultIndex, scrollToMember]);
-  
-  const clearSearch = useCallback(() => {
-    setSearchTerm("");
-    setSearchResults([]);
-    setHighlightedMemberId(null);
-    setCurrentResultIndex(0);
-  }, []);
-  
-  // Register member ref
-  const registerMemberRef = useCallback((memberId: string, element: HTMLDivElement | null) => {
-    if (element) {
-      memberRefs.current.set(memberId, element);
-    } else {
-      memberRefs.current.delete(memberId);
-    }
-  }, []);
   
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.1, 3));
@@ -406,12 +318,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       <div key={primaryMember.id} className="flex flex-col items-center gap-3">
         {/* Couple display */}
         <div className="flex items-center gap-2">
-          <div ref={(el) => registerMemberRef(primaryMember.id, el)}>
-            <FamilyTreeNode 
-              member={primaryMember} 
-              isHighlighted={highlightedMemberId === primaryMember.id}
-            />
-          </div>
+          <FamilyTreeNode member={primaryMember} />
           
           {spouse && (
             <>
@@ -419,13 +326,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
               <div className="flex items-center">
                 <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
               </div>
-              <div ref={(el) => registerMemberRef(spouse.id, el)}>
-                <FamilyTreeNode 
-                  member={spouse} 
-                  isSpouse 
-                  isHighlighted={highlightedMemberId === spouse.id}
-                />
-              </div>
+              <FamilyTreeNode member={spouse} isSpouse />
             </>
           )}
         </div>
@@ -494,59 +395,6 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
         "flex items-center gap-2 flex-wrap",
         isFullscreen && "absolute top-4 left-4 z-10 bg-background/90 backdrop-blur-sm p-2 rounded-lg shadow-lg"
       )}>
-        {/* Search */}
-        <div className="relative flex items-center">
-          <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            type="text"
-            placeholder="Tìm thành viên..."
-            value={searchTerm}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-8 pr-8 h-9 w-[180px] sm:w-[220px]"
-          />
-          {searchTerm && (
-            <button 
-              onClick={clearSearch}
-              className="absolute right-2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-        
-        {/* Search results navigation */}
-        {searchResults.length > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground">
-              {currentResultIndex + 1}/{searchResults.length}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={goToPrevResult}
-              title="Kết quả trước"
-            >
-              <ChevronUp className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={goToNextResult}
-              title="Kết quả sau"
-            >
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-        
-        {searchTerm && searchResults.length === 0 && (
-          <span className="text-xs text-destructive">Không tìm thấy</span>
-        )}
-        
-        <div className="w-px h-6 bg-border mx-1" />
-        
         <Button
           variant="outline"
           size="icon"
@@ -595,7 +443,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       <div 
         ref={containerRef}
         className={cn(
-          "overflow-hidden border rounded-lg bg-muted/30 select-none relative",
+          "overflow-hidden border rounded-lg bg-muted/30 select-none",
           isFullscreen ? "flex-1" : "min-h-[400px] max-h-[70vh]",
           isDragging ? "cursor-grabbing" : "cursor-grab"
         )}
