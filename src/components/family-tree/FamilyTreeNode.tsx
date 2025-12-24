@@ -93,7 +93,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 p-3 rounded-lg bg-card transition-all hover:shadow-md relative",
+        "flex flex-col items-center gap-3 p-3 rounded-lg bg-card transition-all hover:shadow-md relative",
         // Fixed width and height for consistent card size
         "w-[140px] h-[180px]",
         // Border styling based on lineage
