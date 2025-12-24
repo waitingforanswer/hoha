@@ -149,13 +149,12 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
         </Avatar>
       </Link>
       
-      <div className="text-center space-y-1 flex-1 flex flex-col justify-start overflow-hidden">
+      <div className="text-center flex-1 flex flex-col justify-start overflow-hidden">
         <Link 
           to={`/member/${member.id}`}
           className={cn(
-            "text-sm hover:underline block text-center leading-tight",
-            // Allow 2 lines with ellipsis
-            "line-clamp-2 min-h-[2.5rem]",
+            "text-sm hover:underline block text-center leading-snug",
+            "line-clamp-2 min-h-[2.25rem]",
             isPrimaryLineage ? "font-semibold text-lineage-primary" : isMaternalLineage ? "font-medium text-lineage-maternal" : "font-medium text-foreground",
             isDeceased && "opacity-70"
           )}
@@ -165,7 +164,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
         
         {age !== null && (
           <p className={cn(
-            "text-xs",
+            "text-[11px] mt-1",
             isDeceased ? "text-muted-foreground/70" : "text-muted-foreground"
           )}>
             {isDeceased ? `Mất năm ${age} tuổi` : `${age} tuổi`}
@@ -174,11 +173,11 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
         
         {member.address && (
           <p className={cn(
-            "text-xs flex items-center justify-center gap-1 line-clamp-1",
+            "text-[11px] mt-0.5 inline-flex items-center justify-center gap-0.5",
             isDeceased ? "text-muted-foreground/70" : "text-muted-foreground"
           )}>
-            <MapPin className="h-3 w-3 flex-shrink-0" />
-            <span className="truncate">{member.address}</span>
+            <MapPin className="h-2.5 w-2.5 flex-shrink-0 inline-block align-middle" />
+            <span className="truncate max-w-[100px]">{member.address}</span>
           </p>
         )}
       </div>
