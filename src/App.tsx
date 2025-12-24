@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import FamilyTree from "./pages/FamilyTree";
 import MemberDetail from "./pages/MemberDetail";
@@ -23,11 +24,39 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/cay-gia-pha" element={<FamilyTree />} />
-            <Route path="/thanh-vien/:id" element={<MemberDetail />} />
+            <Route 
+              path="/cay-gia-pha" 
+              element={
+                <ProtectedRoute>
+                  <FamilyTree />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/thanh-vien/:id" 
+              element={
+                <ProtectedRoute>
+                  <MemberDetail />
+                </ProtectedRoute>
+              } 
+            />
             <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/members" element={<AdminMembers />} />
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/members" 
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminMembers />
+                </ProtectedRoute>
+              } 
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
