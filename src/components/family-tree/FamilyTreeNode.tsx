@@ -77,7 +77,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
   // Determine role label for non-primary lineage
   const getRoleLabel = () => {
     if (isPrimaryLineage) return null;
-    if (isMaternalLineage) return "Ngoại tộc";
+    if (isMaternalLineage) return "Khác";
     return isMale ? "Rể" : "Dâu";
   };
   
@@ -85,7 +85,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
   
   // Get border color based on lineage type
   const getBorderClass = () => {
-    if (isMaternalLineage) return "border-2 border-lineage-maternal";
+    if (isMaternalLineage) return "border-2 border-foreground/40";
     if (isPrimaryLineage) return "border-2 border-lineage-primary shadow-sm";
     return "border-2 border-lineage-secondary-light border-dashed";
   };
@@ -115,11 +115,11 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
         )}
       </div>
 
-      {/* Role label for Dâu/Rể/Ngoại tộc - top left */}
+      {/* Role label for Dâu/Rể/Khác - top left */}
       {roleLabel && (
         <div className={cn(
-          "absolute -top-2 -left-2 text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm",
-          isMaternalLineage ? "bg-lineage-maternal" : "bg-lineage-secondary"
+          "absolute -top-2 -left-2 text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm",
+          isMaternalLineage ? "bg-muted text-foreground border border-foreground/30" : "bg-lineage-secondary text-white"
         )}>
           {roleLabel}
         </div>
@@ -128,7 +128,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
       <Link to={`/member/${member.id}`} className="group flex-shrink-0">
         <Avatar className={cn(
           "h-14 w-14 border-2 transition-transform group-hover:scale-105",
-          isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : isMaternalLineage ? "border-lineage-maternal" : "border-lineage-secondary-light"
+          isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : isMaternalLineage ? "border-foreground/30" : "border-lineage-secondary-light"
         )}>
           <AvatarImage 
             src={member.avatar_url || undefined} 
@@ -141,7 +141,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
               : isPrimaryLineage 
                 ? "bg-lineage-primary/10 text-lineage-primary" 
                 : isMaternalLineage
-                  ? "bg-lineage-maternal/10 text-lineage-maternal"
+                  ? "bg-muted text-foreground"
                   : "bg-lineage-secondary/10 text-lineage-secondary"
           )}>
             <User className="h-6 w-6" />
@@ -155,7 +155,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
           className={cn(
             "text-sm hover:underline block text-center leading-snug",
             "line-clamp-2 min-h-[2.25rem]",
-            isPrimaryLineage ? "font-semibold text-lineage-primary" : isMaternalLineage ? "font-medium text-lineage-maternal" : "font-medium text-foreground",
+            isPrimaryLineage ? "font-semibold text-lineage-primary" : isMaternalLineage ? "font-medium text-foreground" : "font-medium text-foreground",
             isDeceased && "opacity-70"
           )}
         >
