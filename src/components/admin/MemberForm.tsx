@@ -38,8 +38,10 @@ const memberSchema = z.object({
   bio: z.string().max(1000).optional(),
   generation: z.number().min(1).max(20),
   is_alive: z.boolean(),
+  is_primary_lineage: z.boolean(),
   father_id: z.string().optional(),
   mother_id: z.string().optional(),
+  spouse_id: z.string().optional(),
 });
 
 type MemberFormData = z.infer<typeof memberSchema>;
@@ -85,12 +87,16 @@ const MemberForm = ({
       bio: "",
       generation: 1,
       is_alive: true,
+      is_primary_lineage: true,
       father_id: "",
       mother_id: "",
+      spouse_id: "",
     },
   });
 
   const isAlive = watch("is_alive");
+  const isPrimaryLineage = watch("is_primary_lineage");
+  const currentGender = watch("gender");
 
   useEffect(() => {
     if (member) {
@@ -106,8 +112,10 @@ const MemberForm = ({
         bio: member.bio || "",
         generation: member.generation,
         is_alive: member.is_alive ?? true,
+        is_primary_lineage: member.is_primary_lineage ?? true,
         father_id: member.father_id || "",
         mother_id: member.mother_id || "",
+        spouse_id: member.spouse_id || "",
       });
       setAvatarPreview(member.avatar_url);
     } else {
@@ -123,8 +131,10 @@ const MemberForm = ({
         bio: "",
         generation: 1,
         is_alive: true,
+        is_primary_lineage: true,
         father_id: "",
         mother_id: "",
+        spouse_id: "",
       });
       setAvatarPreview(null);
     }
@@ -182,8 +192,10 @@ const MemberForm = ({
         bio: data.bio || null,
         generation: data.generation,
         is_alive: data.is_alive,
+        is_primary_lineage: data.is_primary_lineage,
         father_id: data.father_id || null,
         mother_id: data.mother_id || null,
+        spouse_id: data.spouse_id || null,
       };
 
       if (member) {
@@ -361,6 +373,50 @@ const MemberForm = ({
                 max={20}
                 {...register("generation", { valueAsNumber: true })}
               />
+            </div>
+          </div>
+
+          {/* Lineage info */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Thuộc họ Hà</Label>
+              <Select
+                value={isPrimaryLineage ? "true" : "false"}
+                onValueChange={(value) => setValue("is_primary_lineage", value === "true")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Có - Thuộc dòng họ Hà</SelectItem>
+                  <SelectItem value="false">Không - Là dâu/rể</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Đánh dấu thành viên thuộc dòng họ Hà hay là dâu/rể
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Vợ/Chồng</Label>
+              <Select
+                value={watch("spouse_id") || ""}
+                onValueChange={(value) => setValue("spouse_id", value === "none" ? "" : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn vợ/chồng" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">-- Không có --</SelectItem>
+                  {allMembers
+                    .filter(m => m.id !== member?.id && m.gender !== currentGender)
+                    .map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.full_name} (Đời {m.generation})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

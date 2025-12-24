@@ -53,9 +53,11 @@ export type Database = {
           generation: number
           id: string
           is_alive: boolean | null
+          is_primary_lineage: boolean | null
           mother_id: string | null
           occupation: string | null
           phone: string | null
+          spouse_id: string | null
           updated_at: string
         }
         Insert: {
@@ -72,9 +74,11 @@ export type Database = {
           generation?: number
           id?: string
           is_alive?: boolean | null
+          is_primary_lineage?: boolean | null
           mother_id?: string | null
           occupation?: string | null
           phone?: string | null
+          spouse_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -91,9 +95,11 @@ export type Database = {
           generation?: number
           id?: string
           is_alive?: boolean | null
+          is_primary_lineage?: boolean | null
           mother_id?: string | null
           occupation?: string | null
           phone?: string | null
+          spouse_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -107,6 +113,13 @@ export type Database = {
           {
             foreignKeyName: "family_members_mother_id_fkey"
             columns: ["mother_id"]
+            isOneToOne: false
+            referencedRelation: "family_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_members_spouse_id_fkey"
+            columns: ["spouse_id"]
             isOneToOne: false
             referencedRelation: "family_members"
             referencedColumns: ["id"]
