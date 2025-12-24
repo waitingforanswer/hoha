@@ -37,6 +37,7 @@ interface FamilyMember {
   generation: number;
   spouse_id: string | null;
   is_primary_lineage: boolean | null;
+  lineage_type?: string | null;
 }
 
 interface FamilyTreeViewProps {

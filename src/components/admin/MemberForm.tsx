@@ -38,7 +38,7 @@ const memberSchema = z.object({
   bio: z.string().max(1000).optional(),
   generation: z.number().min(1).max(20),
   is_alive: z.boolean(),
-  is_primary_lineage: z.boolean(),
+  lineage_type: z.enum(["primary", "spouse", "maternal"]),
   father_id: z.string().optional(),
   mother_id: z.string().optional(),
   spouse_id: z.string().optional(),
@@ -87,7 +87,7 @@ const MemberForm = ({
       bio: "",
       generation: 1,
       is_alive: true,
-      is_primary_lineage: true,
+      lineage_type: "primary" as const,
       father_id: "",
       mother_id: "",
       spouse_id: "",
@@ -95,11 +95,19 @@ const MemberForm = ({
   });
 
   const isAlive = watch("is_alive");
-  const isPrimaryLineage = watch("is_primary_lineage");
+  const lineageType = watch("lineage_type");
   const currentGender = watch("gender");
 
   useEffect(() => {
     if (member) {
+      // Map old is_primary_lineage to new lineage_type if lineage_type not set
+      let lineageTypeValue: "primary" | "spouse" | "maternal" = "primary";
+      if ((member as any).lineage_type) {
+        lineageTypeValue = (member as any).lineage_type;
+      } else if (member.is_primary_lineage === false) {
+        lineageTypeValue = "spouse";
+      }
+      
       reset({
         full_name: member.full_name,
         gender: member.gender || "",
@@ -112,7 +120,7 @@ const MemberForm = ({
         bio: member.bio || "",
         generation: member.generation,
         is_alive: member.is_alive ?? true,
-        is_primary_lineage: member.is_primary_lineage ?? true,
+        lineage_type: lineageTypeValue,
         father_id: member.father_id || "",
         mother_id: member.mother_id || "",
         spouse_id: member.spouse_id || "",
@@ -131,7 +139,7 @@ const MemberForm = ({
         bio: "",
         generation: 1,
         is_alive: true,
-        is_primary_lineage: true,
+        lineage_type: "primary",
         father_id: "",
         mother_id: "",
         spouse_id: "",
@@ -192,7 +200,8 @@ const MemberForm = ({
         bio: data.bio || null,
         generation: data.generation,
         is_alive: data.is_alive,
-        is_primary_lineage: data.is_primary_lineage,
+        lineage_type: data.lineage_type,
+        is_primary_lineage: data.lineage_type === 'primary',
         father_id: data.father_id || null,
         mother_id: data.mother_id || null,
         spouse_id: data.spouse_id || null,
@@ -381,29 +390,35 @@ const MemberForm = ({
             <div className="space-y-2">
               <Label>Phân loại dòng tộc</Label>
               <Select
-                value={isPrimaryLineage ? "true" : "false"}
-                onValueChange={(value) => setValue("is_primary_lineage", value === "true")}
+                value={lineageType}
+                onValueChange={(value) => setValue("lineage_type", value as "primary" | "spouse" | "maternal")}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="true">
+                  <SelectItem value="primary">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded border-2 border-lineage-primary" />
                       <span>Họ Hà (huyết thống chính)</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="false">
+                  <SelectItem value="spouse">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded border-2 border-dashed border-lineage-secondary-light" />
                       <span>Dâu/Rể (kết hôn vào họ)</span>
                     </div>
                   </SelectItem>
+                  <SelectItem value="maternal">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded border-2 border-lineage-maternal" />
+                      <span>Con ngoại tộc (mẹ họ Hà, theo họ bố)</span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Đánh dấu thành viên thuộc dòng họ Hà hay là dâu/rể
+                Phân loại thành viên trong dòng họ
               </p>
             </div>
 

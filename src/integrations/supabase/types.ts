@@ -54,6 +54,7 @@ export type Database = {
           id: string
           is_alive: boolean | null
           is_primary_lineage: boolean | null
+          lineage_type: string | null
           mother_id: string | null
           occupation: string | null
           phone: string | null
@@ -75,6 +76,7 @@ export type Database = {
           id?: string
           is_alive?: boolean | null
           is_primary_lineage?: boolean | null
+          lineage_type?: string | null
           mother_id?: string | null
           occupation?: string | null
           phone?: string | null
@@ -96,6 +98,7 @@ export type Database = {
           id?: string
           is_alive?: boolean | null
           is_primary_lineage?: boolean | null
+          lineage_type?: string | null
           mother_id?: string | null
           occupation?: string | null
           phone?: string | null
