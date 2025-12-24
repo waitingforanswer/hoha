@@ -54,6 +54,14 @@
     --cream: 40 33% 96%;
     --burgundy: 0 50% 35%;
     
+    /* Family Tree Colors */
+    --lineage-primary: 220 60% 25%;        /* Xanh Navy đậm - họ Hà */
+    --lineage-primary-light: 220 50% 40%;  /* Xanh Navy nhạt */
+    --lineage-secondary: 30 50% 55%;       /* Cam đất - Dâu/Rể */
+    --lineage-secondary-light: 30 40% 70%; /* Cam nhạt */
+    --lineage-marriage: 220 10% 60%;       /* Xám - đường hôn nhân */
+    --lineage-faded: 220 10% 75%;          /* Xám mờ - đường đứt mạch */
+    
     /* Gradients */
     --gradient-hero: linear-gradient(135deg, hsl(0 72% 42% / 0.95), hsl(25 40% 30% / 0.9));
     --gradient-gold: linear-gradient(135deg, hsl(38 70% 55%), hsl(38 60% 45%));
@@ -107,6 +115,14 @@
     --gold: 38 70% 55%;
     --cream: 40 20% 90%;
     --burgundy: 0 60% 60%;
+    
+    /* Family Tree Colors - Dark mode */
+    --lineage-primary: 220 55% 55%;
+    --lineage-primary-light: 220 50% 65%;
+    --lineage-secondary: 30 50% 60%;
+    --lineage-secondary-light: 30 40% 70%;
+    --lineage-marriage: 220 10% 50%;
+    --lineage-faded: 220 10% 40%;
 
     --gradient-hero: linear-gradient(135deg, hsl(25 25% 8%), hsl(25 30% 12%));
     --gradient-gold: linear-gradient(135deg, hsl(38 70% 55%), hsl(38 60% 45%));

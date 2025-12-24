@@ -60,19 +60,31 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
   const isDeceased = member.is_alive === false;
   const isMale = member.gender === "male";
   const isFemale = member.gender === "female";
+  const isPrimaryLineage = member.is_primary_lineage !== false;
+  
+  // Determine role label for non-primary lineage
+  const getRoleLabel = () => {
+    if (isPrimaryLineage) return null;
+    return isMale ? "Rể" : "Dâu";
+  };
+  
+  const roleLabel = getRoleLabel();
   
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 p-3 rounded-lg border bg-card transition-all hover:shadow-md relative",
-        isDeceased ? "opacity-60 border-muted" : "border-border",
-        isSpouse && "border-dashed border-primary/50",
+        "flex flex-col items-center gap-2 p-3 rounded-lg bg-card transition-all hover:shadow-md relative",
+        // Border styling based on lineage
+        isPrimaryLineage 
+          ? "border-2 border-lineage-primary shadow-sm" 
+          : "border-2 border-lineage-secondary-light border-dashed",
+        isDeceased && "opacity-70",
         orientation === "horizontal" ? "min-w-[140px]" : "min-w-[120px]"
       )}
     >
-      {/* Gender icon */}
+      {/* Gender icon - top right */}
       <div className={cn(
-        "absolute -top-2 -right-2 rounded-full p-1",
+        "absolute -top-2 -right-2 rounded-full p-1 shadow-sm",
         isMale ? "bg-blue-500 text-white" : isFemale ? "bg-pink-500 text-white" : "bg-muted text-muted-foreground"
       )}>
         {isMale ? (
@@ -84,21 +96,25 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
         )}
       </div>
 
-      {/* Primary lineage badge */}
-      {member.is_primary_lineage === false && (
-        <div className="absolute -top-2 -left-2 bg-secondary text-secondary-foreground text-[10px] px-1.5 py-0.5 rounded-full">
-          Dâu/Rể
+      {/* Role label for Dâu/Rể - top left */}
+      {roleLabel && (
+        <div className="absolute -top-2 -left-2 bg-lineage-secondary text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm">
+          {roleLabel}
         </div>
       )}
       
       <Link to={`/member/${member.id}`} className="group">
         <Avatar className={cn(
           "h-16 w-16 border-2 transition-transform group-hover:scale-105",
-          isDeceased ? "border-muted grayscale" : "border-primary/20"
+          isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : "border-lineage-secondary-light"
         )}>
           <AvatarImage src={member.avatar_url || undefined} alt={member.full_name} />
           <AvatarFallback className={cn(
-            isDeceased ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+            isDeceased 
+              ? "bg-muted text-muted-foreground" 
+              : isPrimaryLineage 
+                ? "bg-lineage-primary/10 text-lineage-primary" 
+                : "bg-lineage-secondary/10 text-lineage-secondary"
           )}>
             <User className="h-6 w-6" />
           </AvatarFallback>
@@ -109,8 +125,9 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
         <Link 
           to={`/member/${member.id}`}
           className={cn(
-            "font-medium text-sm hover:underline block truncate max-w-[120px]",
-            isDeceased ? "text-muted-foreground" : "text-foreground"
+            "text-sm hover:underline block truncate max-w-[120px]",
+            isPrimaryLineage ? "font-semibold text-lineage-primary" : "font-medium text-foreground",
+            isDeceased && "opacity-70"
           )}
         >
           {member.full_name}

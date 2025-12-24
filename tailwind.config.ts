@@ -65,6 +65,14 @@ export default {
         gold: "hsl(var(--gold))",
         cream: "hsl(var(--cream))",
         burgundy: "hsl(var(--burgundy))",
+        lineage: {
+          primary: "hsl(var(--lineage-primary))",
+          "primary-light": "hsl(var(--lineage-primary-light))",
+          secondary: "hsl(var(--lineage-secondary))",
+          "secondary-light": "hsl(var(--lineage-secondary-light))",
+          marriage: "hsl(var(--lineage-marriage))",
+          faded: "hsl(var(--lineage-faded))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
