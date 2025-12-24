@@ -40,6 +40,7 @@ interface FamilyMember {
 interface FamilyTreeNodeProps {
   member: FamilyMember;
   isSpouse?: boolean;
+  isHighlighted?: boolean;
 }
 
 const calculateAge = (birthDate: string | null, deathDate: string | null, isAlive: boolean | null): number | null => {
@@ -58,7 +59,7 @@ const calculateAge = (birthDate: string | null, deathDate: string | null, isAliv
   return age;
 };
 
-export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps) {
+export function FamilyTreeNode({ member, isSpouse = false, isHighlighted = false }: FamilyTreeNodeProps) {
   const age = calculateAge(member.birth_date, member.death_date, member.is_alive);
   const isDeceased = member.is_alive === false;
   const isMale = member.gender === "male";
@@ -85,6 +86,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
   
   // Get border color based on lineage type
   const getBorderClass = () => {
+    if (isHighlighted) return "border-2 border-yellow-500 ring-4 ring-yellow-500/30";
     if (isMaternalLineage) return "border-2 border-lineage-maternal";
     if (isPrimaryLineage) return "border-2 border-lineage-primary shadow-sm";
     return "border-2 border-lineage-secondary-light border-dashed";
@@ -98,7 +100,8 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
         "w-[140px] h-[180px]",
         // Border styling based on lineage
         getBorderClass(),
-        isDeceased && "opacity-70"
+        isDeceased && !isHighlighted && "opacity-70",
+        isHighlighted && "animate-pulse shadow-lg shadow-yellow-500/20"
       )}
     >
       {/* Gender icon - top right */}
