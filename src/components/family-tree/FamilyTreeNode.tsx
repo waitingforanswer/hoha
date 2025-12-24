@@ -125,7 +125,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
         </div>
       )}
       
-      <Link to={`/member/${member.id}`} className="group flex-shrink-0">
+      <Link to={`/thanh-vien/${member.id}`} className="group flex-shrink-0">
         <Avatar className={cn(
           "h-14 w-14 border-2 transition-transform group-hover:scale-105",
           isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : isMaternalLineage ? "border-foreground/30" : "border-lineage-secondary-light"
@@ -151,7 +151,7 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
       
       <div className="text-center flex-1 flex flex-col justify-start overflow-hidden">
         <Link 
-          to={`/member/${member.id}`}
+          to={`/thanh-vien/${member.id}`}
           className={cn(
             "text-sm hover:underline block text-center leading-snug",
             "line-clamp-2 min-h-[2.25rem]",
