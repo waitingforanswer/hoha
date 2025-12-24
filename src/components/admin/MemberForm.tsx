@@ -379,7 +379,7 @@ const MemberForm = ({
           {/* Lineage info */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Thuộc họ Hà</Label>
+              <Label>Phân loại dòng tộc</Label>
               <Select
                 value={isPrimaryLineage ? "true" : "false"}
                 onValueChange={(value) => setValue("is_primary_lineage", value === "true")}
@@ -388,8 +388,18 @@ const MemberForm = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="true">Có - Thuộc dòng họ Hà</SelectItem>
-                  <SelectItem value="false">Không - Là dâu/rể</SelectItem>
+                  <SelectItem value="true">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded border-2 border-lineage-primary" />
+                      <span>Họ Hà (huyết thống chính)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="false">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded border-2 border-dashed border-lineage-secondary-light" />
+                      <span>Dâu/Rể (kết hôn vào họ)</span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { FamilyGroupNode } from "./FamilyGroupNode";
-import { ZoomIn, ZoomOut, RotateCcw, MonitorSmartphone, Monitor } from "lucide-react";
+import { FamilyTreeNode } from "./FamilyTreeNode";
+import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -110,7 +110,6 @@ function buildFamilyTree(members: FamilyMember[]) {
 
 export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const isMobile = useIsMobile();
-  const [orientation, setOrientation] = useState<"horizontal" | "vertical">("vertical");
   const [zoom, setZoom] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -126,10 +125,6 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   
   const handleResetZoom = () => {
     setZoom(1);
-  };
-  
-  const toggleOrientation = () => {
-    setOrientation(prev => prev === "horizontal" ? "vertical" : "horizontal");
   };
   
   // Handle pinch zoom on mobile
@@ -172,7 +167,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     };
   }, [zoom]);
   
-  // Recursive function to render family tree
+  // Recursive function to render family tree - always vertical, no expand/collapse
   const renderFamilyTree = (primaryMember: FamilyMember, processedIds: Set<string>): React.ReactNode => {
     if (processedIds.has(primaryMember.id)) return null;
     processedIds.add(primaryMember.id);
@@ -192,46 +187,70 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     const childrenContinueBloodline = primaryMember.is_primary_lineage !== false && primaryMember.gender === 'male';
     
     return (
-      <FamilyGroupNode
-        key={primaryMember.id}
-        primaryMember={primaryMember}
-        spouse={spouse}
-        children={children}
-        orientation={orientation}
-        onRenderChildren={(childList) => (
-          <>
-            {childList.map(child => {
-              // Only recursively render primary lineage children
-              if (child.is_primary_lineage !== false) {
-                return (
-                  <div key={child.id} className="relative flex flex-col items-center">
-                    {orientation === "vertical" && (
+      <div key={primaryMember.id} className="flex flex-col items-center gap-3">
+        {/* Couple display */}
+        <div className="flex items-center gap-2">
+          <FamilyTreeNode member={primaryMember} />
+          
+          {spouse && (
+            <>
+              {/* Marriage connector - dashed gray line */}
+              <div className="flex items-center">
+                <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
+              </div>
+              <FamilyTreeNode member={spouse} isSpouse />
+            </>
+          )}
+        </div>
+        
+        {/* Children */}
+        {children.length > 0 && (
+          <div className="relative">
+            {/* Connector line from parent to children - bloodline or faded */}
+            <div 
+              className={cn(
+                "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full",
+                childrenContinueBloodline 
+                  ? "w-[3px] h-3 bg-lineage-primary" 
+                  : "w-0.5 h-3 border-l-2 border-dashed border-lineage-faded"
+              )}
+            />
+            
+            <div className="flex gap-6 pt-3 relative">
+              {/* Horizontal line connecting children */}
+              {children.length > 1 && (
+                <div 
+                  className={cn(
+                    "absolute top-0 left-1/2 -translate-x-1/2",
+                    childrenContinueBloodline 
+                      ? "h-[3px] bg-lineage-primary" 
+                      : "h-0.5 border-t-2 border-dashed border-lineage-faded"
+                  )}
+                  style={{ width: `calc(100% - 80px)` }}
+                />
+              )}
+              
+              {children.map(child => {
+                // Only recursively render primary lineage children
+                if (child.is_primary_lineage !== false) {
+                  return (
+                    <div key={child.id} className="relative flex flex-col items-center">
                       <div className={cn(
                         "-mt-3",
                         childrenContinueBloodline 
                           ? "w-[3px] h-6 bg-lineage-primary" 
                           : "w-0.5 h-6 border-l-2 border-dashed border-lineage-faded"
                       )} />
-                    )}
-                    {orientation === "horizontal" && (
-                      <div className="flex items-center">
-                        <div className={cn(
-                          childrenContinueBloodline 
-                            ? "w-6 h-[3px] bg-lineage-primary" 
-                            : "w-6 h-0.5 border-t-2 border-dashed border-lineage-faded"
-                        )} />
-                      </div>
-                    )}
-                    {renderFamilyTree(child, processedIds)}
-                  </div>
-                );
-              }
-              // Non-primary lineage children (spouses) are shown only in their family group
-              return null;
-            })}
-          </>
+                      {renderFamilyTree(child, processedIds)}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          </div>
         )}
-      />
+      </div>
     );
   };
   
@@ -243,54 +262,33 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleZoomOut}
-            disabled={zoom <= 0.5}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-sm text-muted-foreground min-w-[60px] text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleZoomIn}
-            disabled={zoom >= 2}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleResetZoom}
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-        </div>
-        
+      {/* Controls - only zoom, no orientation toggle */}
+      <div className="flex items-center gap-2">
         <Button
           variant="outline"
-          size="sm"
-          onClick={toggleOrientation}
-          className="gap-2"
+          size="icon"
+          onClick={handleZoomOut}
+          disabled={zoom <= 0.5}
         >
-          {orientation === "vertical" ? (
-            <>
-              <Monitor className="h-4 w-4" />
-              <span className="hidden sm:inline">Xem ngang</span>
-            </>
-          ) : (
-            <>
-              <MonitorSmartphone className="h-4 w-4" />
-              <span className="hidden sm:inline">Xem dọc</span>
-            </>
-          )}
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <span className="text-sm text-muted-foreground min-w-[60px] text-center">
+          {Math.round(zoom * 100)}%
+        </span>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleZoomIn}
+          disabled={zoom >= 2}
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleResetZoom}
+        >
+          <RotateCcw className="h-4 w-4" />
         </Button>
       </div>
       
@@ -300,16 +298,10 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
         className="overflow-auto border rounded-lg bg-muted/30 min-h-[400px] max-h-[70vh]"
       >
         <div 
-          className={cn(
-            "p-8 inline-block min-w-full transition-transform origin-top-left",
-            orientation === "horizontal" ? "min-h-full" : ""
-          )}
+          className="p-8 inline-block min-w-full transition-transform origin-top-left"
           style={{ transform: `scale(${zoom})` }}
         >
-          <div className={cn(
-            "flex gap-8",
-            orientation === "vertical" ? "flex-col items-center" : "flex-row items-start"
-          )}>
+          <div className="flex flex-col items-center gap-8">
             {rootMembers.map((rootMember) => (
               renderFamilyTree(rootMember, processedIds)
             ))}
@@ -327,6 +319,10 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
         <div className="flex items-center gap-2">
           <div className="w-6 h-4 rounded border-2 border-dashed border-lineage-secondary-light bg-card" />
           <span>Dâu/Rể</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-4 rounded border-2 border-lineage-maternal bg-card" />
+          <span>Con ngoại tộc</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-6 h-[3px] bg-lineage-primary" />

@@ -21,6 +21,9 @@ const FemaleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// lineage_type: 'primary' = họ Hà, 'spouse' = dâu/rể, 'maternal' = con ngoại tộc (mẹ họ Hà, theo họ bố)
+type LineageType = 'primary' | 'spouse' | 'maternal';
+
 interface FamilyMember {
   id: string;
   full_name: string;
@@ -31,11 +34,11 @@ interface FamilyMember {
   address: string | null;
   gender: string | null;
   is_primary_lineage?: boolean | null;
+  lineage_type?: LineageType;
 }
 
 interface FamilyTreeNodeProps {
   member: FamilyMember;
-  orientation: "horizontal" | "vertical";
   isSpouse?: boolean;
 }
 
@@ -55,31 +58,44 @@ const calculateAge = (birthDate: string | null, deathDate: string | null, isAliv
   return age;
 };
 
-export function FamilyTreeNode({ member, orientation, isSpouse = false }: FamilyTreeNodeProps) {
+export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps) {
   const age = calculateAge(member.birth_date, member.death_date, member.is_alive);
   const isDeceased = member.is_alive === false;
   const isMale = member.gender === "male";
   const isFemale = member.gender === "female";
-  const isPrimaryLineage = member.is_primary_lineage !== false;
+  
+  // Determine lineage type
+  const lineageType: LineageType = member.lineage_type || 
+    (member.is_primary_lineage === false ? 'spouse' : 'primary');
+  
+  const isPrimaryLineage = lineageType === 'primary';
+  const isMaternalLineage = lineageType === 'maternal';
   
   // Determine role label for non-primary lineage
   const getRoleLabel = () => {
     if (isPrimaryLineage) return null;
+    if (isMaternalLineage) return "Ngoại tộc";
     return isMale ? "Rể" : "Dâu";
   };
   
   const roleLabel = getRoleLabel();
   
+  // Get border color based on lineage type
+  const getBorderClass = () => {
+    if (isMaternalLineage) return "border-2 border-lineage-maternal";
+    if (isPrimaryLineage) return "border-2 border-lineage-primary shadow-sm";
+    return "border-2 border-lineage-secondary-light border-dashed";
+  };
+  
   return (
     <div
       className={cn(
         "flex flex-col items-center gap-2 p-3 rounded-lg bg-card transition-all hover:shadow-md relative",
+        // Fixed width and height for consistent card size
+        "w-[140px] h-[180px]",
         // Border styling based on lineage
-        isPrimaryLineage 
-          ? "border-2 border-lineage-primary shadow-sm" 
-          : "border-2 border-lineage-secondary-light border-dashed",
-        isDeceased && "opacity-70",
-        orientation === "horizontal" ? "min-w-[140px]" : "min-w-[120px]"
+        getBorderClass(),
+        isDeceased && "opacity-70"
       )}
     >
       {/* Gender icon - top right */}
@@ -96,37 +112,48 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
         )}
       </div>
 
-      {/* Role label for Dâu/Rể - top left */}
+      {/* Role label for Dâu/Rể/Ngoại tộc - top left */}
       {roleLabel && (
-        <div className="absolute -top-2 -left-2 bg-lineage-secondary text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm">
+        <div className={cn(
+          "absolute -top-2 -left-2 text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm",
+          isMaternalLineage ? "bg-lineage-maternal" : "bg-lineage-secondary"
+        )}>
           {roleLabel}
         </div>
       )}
       
-      <Link to={`/member/${member.id}`} className="group">
+      <Link to={`/member/${member.id}`} className="group flex-shrink-0">
         <Avatar className={cn(
-          "h-16 w-16 border-2 transition-transform group-hover:scale-105",
-          isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : "border-lineage-secondary-light"
+          "h-14 w-14 border-2 transition-transform group-hover:scale-105",
+          isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : isMaternalLineage ? "border-lineage-maternal" : "border-lineage-secondary-light"
         )}>
-          <AvatarImage src={member.avatar_url || undefined} alt={member.full_name} />
+          <AvatarImage 
+            src={member.avatar_url || undefined} 
+            alt={member.full_name} 
+            className="object-cover object-center"
+          />
           <AvatarFallback className={cn(
             isDeceased 
               ? "bg-muted text-muted-foreground" 
               : isPrimaryLineage 
                 ? "bg-lineage-primary/10 text-lineage-primary" 
-                : "bg-lineage-secondary/10 text-lineage-secondary"
+                : isMaternalLineage
+                  ? "bg-lineage-maternal/10 text-lineage-maternal"
+                  : "bg-lineage-secondary/10 text-lineage-secondary"
           )}>
             <User className="h-6 w-6" />
           </AvatarFallback>
         </Avatar>
       </Link>
       
-      <div className="text-center space-y-1">
+      <div className="text-center space-y-1 flex-1 flex flex-col justify-start overflow-hidden">
         <Link 
           to={`/member/${member.id}`}
           className={cn(
-            "text-sm hover:underline block truncate max-w-[120px]",
-            isPrimaryLineage ? "font-semibold text-lineage-primary" : "font-medium text-foreground",
+            "text-sm hover:underline block text-center leading-tight",
+            // Allow 2 lines with ellipsis
+            "line-clamp-2 min-h-[2.5rem]",
+            isPrimaryLineage ? "font-semibold text-lineage-primary" : isMaternalLineage ? "font-medium text-lineage-maternal" : "font-medium text-foreground",
             isDeceased && "opacity-70"
           )}
         >
@@ -144,7 +171,7 @@ export function FamilyTreeNode({ member, orientation, isSpouse = false }: Family
         
         {member.address && (
           <p className={cn(
-            "text-xs flex items-center justify-center gap-1 truncate max-w-[120px]",
+            "text-xs flex items-center justify-center gap-1 line-clamp-1",
             isDeceased ? "text-muted-foreground/70" : "text-muted-foreground"
           )}>
             <MapPin className="h-3 w-3 flex-shrink-0" />
