@@ -1,9 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { FamilyTreeBranch } from "./FamilyTreeBranch";
-import { ZoomIn, ZoomOut, RotateCcw, MonitorSmartphone, Monitor } from "lucide-react";
+import { FamilyGroupNode } from "./FamilyGroupNode";
+import { ZoomIn, ZoomOut, RotateCcw, MonitorSmartphone, Monitor, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+// Gender icons as simple components
+const MaleIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="10" cy="14" r="5"/>
+    <line x1="19" y1="5" x2="13.6" y2="10.4"/>
+    <line x1="19" y1="5" x2="14" y2="5"/>
+    <line x1="19" y1="5" x2="19" y2="10"/>
+  </svg>
+);
+
+const FemaleIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="8" r="5"/>
+    <line x1="12" y1="13" x2="12" y2="21"/>
+    <line x1="9" y1="18" x2="15" y2="18"/>
+  </svg>
+);
 
 interface FamilyMember {
   id: string;
@@ -17,70 +35,77 @@ interface FamilyMember {
   father_id: string | null;
   mother_id: string | null;
   generation: number;
-}
-
-interface TreeNode {
-  member: FamilyMember;
-  children: TreeNode[];
+  spouse_id: string | null;
+  is_primary_lineage: boolean | null;
 }
 
 interface FamilyTreeViewProps {
   members: FamilyMember[];
 }
 
-function buildFamilyTree(members: FamilyMember[]): TreeNode[] {
-  // Find root members (those without parents in the system)
+function buildFamilyTree(members: FamilyMember[]) {
   const memberMap = new Map<string, FamilyMember>();
   members.forEach(m => memberMap.set(m.id, m));
   
-  // Build children map
-  const childrenMap = new Map<string, FamilyMember[]>();
+  // Find all children for a couple (father + mother)
+  const getChildrenForCouple = (fatherId: string | null, motherId: string | null): FamilyMember[] => {
+    return members.filter(m => {
+      if (fatherId && motherId) {
+        return m.father_id === fatherId && m.mother_id === motherId;
+      }
+      if (fatherId) {
+        return m.father_id === fatherId;
+      }
+      if (motherId) {
+        return m.mother_id === motherId;
+      }
+      return false;
+    }).sort((a, b) => {
+      if (a.birth_date && b.birth_date) {
+        return new Date(a.birth_date).getTime() - new Date(b.birth_date).getTime();
+      }
+      return 0;
+    });
+  };
   
-  members.forEach(member => {
-    // Add as child to father
-    if (member.father_id && memberMap.has(member.father_id)) {
-      const existing = childrenMap.get(member.father_id) || [];
-      if (!existing.find(c => c.id === member.id)) {
-        childrenMap.set(member.father_id, [...existing, member]);
+  // Find spouse for a member
+  const getSpouse = (member: FamilyMember): FamilyMember | null => {
+    // Check direct spouse_id link
+    if (member.spouse_id && memberMap.has(member.spouse_id)) {
+      return memberMap.get(member.spouse_id)!;
+    }
+    
+    // Find spouse by looking at children's parents
+    const children = members.filter(m => 
+      m.father_id === member.id || m.mother_id === member.id
+    );
+    
+    for (const child of children) {
+      if (member.gender === 'male' && child.mother_id && memberMap.has(child.mother_id)) {
+        return memberMap.get(child.mother_id)!;
+      }
+      if (member.gender === 'female' && child.father_id && memberMap.has(child.father_id)) {
+        return memberMap.get(child.father_id)!;
       }
     }
-    // Add as child to mother (only if no father, to avoid duplicates)
-    else if (member.mother_id && memberMap.has(member.mother_id)) {
-      const existing = childrenMap.get(member.mother_id) || [];
-      if (!existing.find(c => c.id === member.id)) {
-        childrenMap.set(member.mother_id, [...existing, member]);
-      }
-    }
-  });
+    
+    return null;
+  };
   
-  // Find root nodes (members without parents in the system)
-  const roots = members.filter(member => {
+  // Find root members (primary lineage members without parents in the system, or oldest generation)
+  const rootMembers = members.filter(member => {
+    // Must be primary lineage
+    if (member.is_primary_lineage === false) return false;
+    
+    // Check if parents exist in system
     const hasParentInSystem = 
       (member.father_id && memberMap.has(member.father_id)) ||
       (member.mother_id && memberMap.has(member.mother_id));
+    
     return !hasParentInSystem;
-  });
+  }).sort((a, b) => a.generation - b.generation);
   
-  // Build tree recursively
-  function buildNode(member: FamilyMember): TreeNode {
-    const children = childrenMap.get(member.id) || [];
-    return {
-      member,
-      children: children
-        .sort((a, b) => {
-          // Sort by birth date
-          if (a.birth_date && b.birth_date) {
-            return new Date(a.birth_date).getTime() - new Date(b.birth_date).getTime();
-          }
-          return 0;
-        })
-        .map(child => buildNode(child))
-    };
-  }
-  
-  return roots
-    .sort((a, b) => a.generation - b.generation)
-    .map(root => buildNode(root));
+  return { rootMembers, memberMap, getChildrenForCouple, getSpouse };
 }
 
 export function FamilyTreeView({ members }: FamilyTreeViewProps) {
@@ -89,7 +114,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const [zoom, setZoom] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const trees = buildFamilyTree(members);
+  const { rootMembers, memberMap, getChildrenForCouple, getSpouse } = buildFamilyTree(members);
   
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.1, 2));
@@ -147,9 +172,65 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     };
   }, [zoom]);
   
+  // Recursive function to render family tree
+  const renderFamilyTree = (primaryMember: FamilyMember, processedIds: Set<string>): React.ReactNode => {
+    if (processedIds.has(primaryMember.id)) return null;
+    processedIds.add(primaryMember.id);
+    
+    const spouse = getSpouse(primaryMember);
+    if (spouse) {
+      processedIds.add(spouse.id);
+    }
+    
+    // Get children of this couple
+    const children = getChildrenForCouple(
+      primaryMember.gender === 'male' ? primaryMember.id : spouse?.id || null,
+      primaryMember.gender === 'female' ? primaryMember.id : spouse?.id || null
+    );
+    
+    // Filter to only primary lineage children for the main tree
+    const primaryChildren = children.filter(c => c.is_primary_lineage !== false);
+    
+    return (
+      <FamilyGroupNode
+        key={primaryMember.id}
+        primaryMember={primaryMember}
+        spouse={spouse}
+        children={children}
+        orientation={orientation}
+        onRenderChildren={(childList) => (
+          <>
+            {childList.map(child => {
+              // Only recursively render primary lineage children
+              if (child.is_primary_lineage !== false) {
+                return (
+                  <div key={child.id} className="relative flex flex-col items-center">
+                    {orientation === "vertical" && (
+                      <div className="w-0.5 h-4 bg-border" />
+                    )}
+                    {orientation === "horizontal" && (
+                      <div className="flex items-center">
+                        <div className="w-4 h-0.5 bg-border" />
+                      </div>
+                    )}
+                    {renderFamilyTree(child, processedIds)}
+                  </div>
+                );
+              }
+              // Non-primary lineage children (spouses) are shown only in their family group
+              return null;
+            })}
+          </>
+        )}
+      />
+    );
+  };
+  
   if (members.length === 0) {
     return null;
   }
+  
+  const processedIds = new Set<string>();
   
   return (
     <div className="space-y-4">
@@ -220,20 +301,15 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
             "flex gap-8",
             orientation === "vertical" ? "flex-col items-center" : "flex-row items-start"
           )}>
-            {trees.map((tree) => (
-              <FamilyTreeBranch 
-                key={tree.member.id} 
-                node={tree} 
-                orientation={orientation}
-                isRoot 
-              />
+            {rootMembers.map((rootMember) => (
+              renderFamilyTree(rootMember, processedIds)
             ))}
           </div>
         </div>
       </div>
       
       {/* Legend */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded border bg-card" />
           <span>Còn sống</span>
@@ -241,6 +317,28 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded border bg-card opacity-60 grayscale" />
           <span>Đã mất</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+            <MaleIcon className="h-2.5 w-2.5 text-white" />
+          </div>
+          <span>Nam</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-pink-500 flex items-center justify-center">
+            <FemaleIcon className="h-2.5 w-2.5 text-white" />
+          </div>
+          <span>Nữ</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Heart className="h-4 w-4 text-primary/50 fill-primary/20" />
+          <span>Vợ chồng</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="px-1.5 py-0.5 bg-secondary text-secondary-foreground text-[10px] rounded-full">
+            Dâu/Rể
+          </div>
+          <span>Không thuộc họ Hà</span>
         </div>
       </div>
     </div>
