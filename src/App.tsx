@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppAuthProvider } from "@/hooks/useAppAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AppProtectedRoute } from "@/components/AppProtectedRoute";
 import Index from "./pages/Index";
 import FamilyTree from "./pages/FamilyTree";
 import MemberDetail from "./pages/MemberDetail";
@@ -31,17 +32,17 @@ const App = () => (
               <Route 
                 path="/cay-gia-pha" 
                 element={
-                  <ProtectedRoute>
+                  <AppProtectedRoute>
                     <FamilyTree />
-                  </ProtectedRoute>
+                  </AppProtectedRoute>
                 } 
               />
               <Route 
                 path="/thanh-vien/:id" 
                 element={
-                  <ProtectedRoute>
+                  <AppProtectedRoute>
                     <MemberDetail />
-                  </ProtectedRoute>
+                  </AppProtectedRoute>
                 } 
               />
               <Route path="/admin/login" element={<AdminLogin />} />
