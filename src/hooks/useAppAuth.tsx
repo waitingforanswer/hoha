@@ -75,17 +75,20 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        return { success: false, error: data.error, field: data.field };
+      if (!data?.success) {
+        return { success: false, error: data?.error, field: data?.field };
       }
 
       // Store session
       setUser(data.user);
       setSession(data.session);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        user: data.user,
-        session: data.session,
-      }));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          user: data.user,
+          session: data.session,
+        })
+      );
 
       return { success: true };
     } catch (error) {
@@ -106,8 +109,8 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 
       const result = await response.json();
 
-      if (!response.ok) {
-        return { success: false, error: result.error, field: result.field };
+      if (!result?.success) {
+        return { success: false, error: result?.error, field: result?.field };
       }
 
       return { success: true, message: result.message };
