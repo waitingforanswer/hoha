@@ -66,6 +66,7 @@ const AdminSettings = () => {
       }
 
       const response = await supabase.functions.invoke("admin-users", {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
         },
