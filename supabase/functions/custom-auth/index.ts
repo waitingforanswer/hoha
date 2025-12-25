@@ -72,9 +72,19 @@ async function hashPassword(password: string, salt?: string): Promise<{ hash: st
 }
 
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  const [salt, _] = storedHash.split(":");
-  const { hash } = await hashPassword(password, salt);
-  return hash === storedHash;
+  try {
+    const [salt, originalHash] = storedHash.split(":");
+    console.log(`Verifying password with salt: ${salt}`);
+    const { hash } = await hashPassword(password, salt);
+    console.log(`Stored hash: ${storedHash}`);
+    console.log(`Computed hash: ${hash}`);
+    const isValid = hash === storedHash;
+    console.log(`Password valid: ${isValid}`);
+    return isValid;
+  } catch (error) {
+    console.error("Password verification error:", error);
+    return false;
+  }
 }
 
 serve(async (req) => {
