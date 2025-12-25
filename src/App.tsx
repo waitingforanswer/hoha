@@ -6,7 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppAuthProvider } from "@/hooks/useAppAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { AppProtectedRoute } from "@/components/AppProtectedRoute";
+import { PermissionProtectedRoute } from "@/components/PermissionProtectedRoute";
+import { PERMISSIONS } from "@/hooks/usePermissions";
 import Index from "./pages/Index";
 import FamilyTree from "./pages/FamilyTree";
 import MemberDetail from "./pages/MemberDetail";
@@ -33,17 +34,17 @@ const App = () => (
               <Route 
                 path="/cay-gia-pha" 
                 element={
-                  <AppProtectedRoute>
+                  <PermissionProtectedRoute requiredPermission={PERMISSIONS.VIEW_FAMILY_TREE}>
                     <FamilyTree />
-                  </AppProtectedRoute>
+                  </PermissionProtectedRoute>
                 } 
               />
               <Route 
                 path="/thanh-vien/:id" 
                 element={
-                  <AppProtectedRoute>
+                  <PermissionProtectedRoute requiredPermission={PERMISSIONS.VIEW_MEMBER_DETAIL}>
                     <MemberDetail />
-                  </AppProtectedRoute>
+                  </PermissionProtectedRoute>
                 } 
               />
               <Route path="/admin/login" element={<AdminLogin />} />
