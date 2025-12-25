@@ -14,6 +14,7 @@ import Auth from "./pages/Auth";
 import AdminLogin from "./pages/admin/Login";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminMembers from "./pages/admin/Members";
+import AdminSettings from "./pages/admin/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,14 @@ const App = () => (
                 element={
                   <ProtectedRoute requireAdmin>
                     <AdminMembers />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/settings" 
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminSettings />
                   </ProtectedRoute>
                 } 
               />
