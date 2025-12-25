@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { encode as hexEncode } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,8 +15,66 @@ interface RegisterRequest {
 }
 
 interface LoginRequest {
-  identifier: string; // username or phone
+  identifier: string;
   password: string;
+}
+
+// Convert Uint8Array to hex string
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Convert hex string to Uint8Array
+function fromHex(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+// Simple password hashing using PBKDF2 (Deno-compatible)
+async function hashPassword(password: string, salt?: string): Promise<{ hash: string; salt: string }> {
+  const encoder = new TextEncoder();
+  const passwordData = encoder.encode(password);
+  
+  // Generate or use existing salt
+  const saltBytes = salt 
+    ? fromHex(salt)
+    : crypto.getRandomValues(new Uint8Array(16));
+  
+  const saltHex = salt || toHex(saltBytes);
+  
+  // Import key for PBKDF2
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordData,
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  
+  // Derive hash using PBKDF2
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: saltBytes.buffer as ArrayBuffer,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    key,
+    256
+  );
+  
+  const hashHex = toHex(new Uint8Array(derivedBits));
+  
+  return { hash: `${saltHex}:${hashHex}`, salt: saltHex };
+}
+
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  const [salt, _] = storedHash.split(":");
+  const { hash } = await hashPassword(password, salt);
+  return hash === storedHash;
 }
 
 serve(async (req) => {
@@ -33,6 +91,8 @@ serve(async (req) => {
     
     const url = new URL(req.url);
     const action = url.pathname.split("/").pop();
+    
+    console.log(`Processing ${action} request`);
     
     if (req.method !== "POST") {
       return new Response(
@@ -64,6 +124,8 @@ serve(async (req) => {
 
 async function handleRegister(supabase: any, data: RegisterRequest) {
   const { username, password, full_name, phone } = data;
+
+  console.log(`Register attempt for username: ${username}`);
 
   // Validate input
   if (!username || !password || !full_name || !phone) {
@@ -108,9 +170,8 @@ async function handleRegister(supabase: any, data: RegisterRequest) {
     );
   }
 
-  // Hash password
-  const salt = await bcrypt.genSalt(10);
-  const password_hash = await bcrypt.hash(password, salt);
+  // Hash password using PBKDF2
+  const { hash: password_hash } = await hashPassword(password);
 
   // Create user with PENDING status
   const { data: newUser, error: insertError } = await supabase
@@ -133,6 +194,8 @@ async function handleRegister(supabase: any, data: RegisterRequest) {
     );
   }
 
+  console.log(`User registered successfully: ${username}`);
+
   return new Response(
     JSON.stringify({ 
       success: true, 
@@ -145,6 +208,8 @@ async function handleRegister(supabase: any, data: RegisterRequest) {
 
 async function handleLogin(supabase: any, data: LoginRequest) {
   const { identifier, password } = data;
+
+  console.log(`Login attempt for: ${identifier}`);
 
   // Validate input
   if (!identifier || !password) {
@@ -178,7 +243,7 @@ async function handleLogin(supabase: any, data: LoginRequest) {
   }
 
   // Verify password
-  const passwordValid = await bcrypt.compare(password, user.password_hash);
+  const passwordValid = await verifyPassword(password, user.password_hash);
   
   if (!passwordValid) {
     return new Response(
@@ -195,12 +260,14 @@ async function handleLogin(supabase: any, data: LoginRequest) {
     );
   }
 
-  // Create session token (simple JWT-like token for now)
+  // Create session token
   const sessionToken = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
   // Return user data (excluding password hash) and session
   const { password_hash, ...userWithoutPassword } = user;
+
+  console.log(`User logged in successfully: ${identifier}`);
 
   return new Response(
     JSON.stringify({ 
