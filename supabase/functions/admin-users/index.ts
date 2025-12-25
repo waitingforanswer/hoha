@@ -120,6 +120,38 @@ serve(async (req) => {
         return json({ success: false, error: "Failed to update status" }, 500);
       }
 
+      // Auto-assign USER role when activating, remove when deactivating
+      if (status === "ACTIVE") {
+        // Get USER role id
+        const { data: userRole } = await supabase
+          .from("roles")
+          .select("id")
+          .eq("code", "USER")
+          .single();
+
+        if (userRole) {
+          // Insert role if not exists
+          await supabase
+            .from("app_user_roles")
+            .upsert({ app_user_id: user_id, role_id: userRole.id }, { onConflict: "app_user_id,role_id" });
+        }
+      } else if (status === "INACTIVE") {
+        // Remove USER role when deactivating
+        const { data: userRole } = await supabase
+          .from("roles")
+          .select("id")
+          .eq("code", "USER")
+          .single();
+
+        if (userRole) {
+          await supabase
+            .from("app_user_roles")
+            .delete()
+            .eq("app_user_id", user_id)
+            .eq("role_id", userRole.id);
+        }
+      }
+
       console.log(`User ${user_id} status updated to ${status} by admin ${authUser.id}`);
       return json({ success: true, message: "Status updated successfully" });
     }

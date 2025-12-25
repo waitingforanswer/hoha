@@ -17,6 +17,7 @@ interface Session {
 interface AppAuthContextType {
   user: AppUser | null;
   session: Session | null;
+  permissions: string[] | null;
   loading: boolean;
   login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string; field?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string; error?: string; field?: string }>;
@@ -38,6 +39,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export function AppAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [permissions, setPermissions] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
         if (expiresAt > new Date()) {
           setUser(parsed.user);
           setSession(parsed.session);
+          setPermissions(parsed.permissions ?? []);
         } else {
           // Session expired, clear storage
           localStorage.removeItem(STORAGE_KEY);
@@ -79,14 +82,16 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data?.error, field: data?.field };
       }
 
-      // Store session
+      // Store session with permissions
       setUser(data.user);
       setSession(data.session);
+      setPermissions(data.permissions ?? []);
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
           user: data.user,
           session: data.session,
+          permissions: data.permissions ?? [],
         })
       );
 
@@ -123,11 +128,12 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     setSession(null);
+    setPermissions(null);
     localStorage.removeItem(STORAGE_KEY);
   };
 
   return (
-    <AppAuthContext.Provider value={{ user, session, loading, login, register, logout }}>
+    <AppAuthContext.Provider value={{ user, session, permissions, loading, login, register, logout }}>
       {children}
     </AppAuthContext.Provider>
   );

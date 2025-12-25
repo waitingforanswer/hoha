@@ -218,6 +218,9 @@ async function handleLogin(supabase: any, data: LoginRequest) {
     return json({ success: false, error: "Tài khoản chưa được kích hoạt", field: "status" });
   }
 
+  // Fetch user's permissions via roles
+  const permissions = await getUserPermissions(supabase, user.id);
+
   const sessionToken = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const { password_hash, ...userWithoutPassword } = user;
@@ -225,9 +228,61 @@ async function handleLogin(supabase: any, data: LoginRequest) {
   return json({
     success: true,
     user: userWithoutPassword,
+    permissions,
     session: {
       token: sessionToken,
       expires_at: expiresAt.toISOString(),
     },
   });
+}
+
+async function getUserPermissions(supabase: any, userId: string): Promise<string[]> {
+  // Get user's roles
+  const { data: userRoles, error: rolesError } = await supabase
+    .from("app_user_roles")
+    .select("role_id")
+    .eq("app_user_id", userId);
+
+  if (rolesError || !userRoles?.length) {
+    console.log("No roles found for user:", userId);
+    return [];
+  }
+
+  const roleIds = userRoles.map((ur: any) => ur.role_id);
+
+  // Check if user has ADMIN role (bypasses all permissions)
+  const { data: adminRole } = await supabase
+    .from("roles")
+    .select("id")
+    .eq("code", "ADMIN")
+    .single();
+
+  if (adminRole && roleIds.includes(adminRole.id)) {
+    // Admin has all permissions - return special marker
+    return ["*"];
+  }
+
+  // Get permissions for user's roles
+  const { data: rolePermissions, error: permError } = await supabase
+    .from("role_permissions")
+    .select("permission_id")
+    .in("role_id", roleIds);
+
+  if (permError || !rolePermissions?.length) {
+    return [];
+  }
+
+  const permissionIds = rolePermissions.map((rp: any) => rp.permission_id);
+
+  // Get permission codes
+  const { data: permissions, error: fetchError } = await supabase
+    .from("permissions")
+    .select("code")
+    .in("id", permissionIds);
+
+  if (fetchError || !permissions) {
+    return [];
+  }
+
+  return permissions.map((p: any) => p.code);
 }
