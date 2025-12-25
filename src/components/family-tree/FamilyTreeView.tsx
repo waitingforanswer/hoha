@@ -507,57 +507,6 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
         )}
       </div>
       
-      {/* Legend */}
-      <div className={cn(
-        "flex items-center gap-4 text-sm text-muted-foreground flex-wrap p-3 bg-muted/50 rounded-lg",
-        isFullscreen && "absolute bottom-4 left-4 right-4 z-10 bg-background/90 backdrop-blur-sm shadow-lg"
-      )}>
-        <span className="font-medium text-foreground">Chú thích:</span>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-4 rounded border-2 border-lineage-primary bg-card" />
-          <span>Họ Hà (huyết thống)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-4 rounded border-2 border-dashed border-lineage-secondary-light bg-card" />
-          <span>Dâu/Rể</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-4 rounded border-2 border-lineage-maternal bg-card" />
-          <span>Con ngoại tộc</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-4 rounded border-2 border-lineage-tertiary bg-card" />
-          <span>Ngoại tộc (con gái đi lấy chồng)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-[3px] bg-lineage-primary" />
-          <span>Đường huyết thống</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
-          <span>Đường hôn nhân</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-faded" />
-          <span>Đường đứt mạch</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
-            <MaleIcon className="h-2.5 w-2.5 text-white" />
-          </div>
-          <span>Nam</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-full bg-pink-500 flex items-center justify-center">
-            <FemaleIcon className="h-2.5 w-2.5 text-white" />
-          </div>
-          <span>Nữ</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border bg-card opacity-60 grayscale" />
-          <span>Đã mất</span>
-        </div>
-      </div>
     </>
   );
   
