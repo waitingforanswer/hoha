@@ -27,7 +27,8 @@ export function ProtectedRoute({
   }
 
   if (requireAdmin && !isAdmin) {
-    return <Navigate to="/" replace />;
+    // Logged in but not admin - redirect to app login
+    return <Navigate to="/auth" replace />;
   }
 
   return <>{children}</>;
