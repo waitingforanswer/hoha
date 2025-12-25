@@ -77,8 +77,8 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.pathname.split("/").pop();
 
-    if (req.method === "GET" && action === "admin-users") {
-      // List all users
+    // GET: List all users
+    if (req.method === "GET") {
       const { data: users, error } = await supabase
         .from("app_users")
         .select("id, username, full_name, phone, status, created_at, updated_at")
@@ -92,6 +92,7 @@ serve(async (req) => {
       return json({ success: true, users });
     }
 
+    // POST: Update status or change password
     if (req.method !== "POST") {
       return json({ success: false, error: "Method not allowed" }, 405);
     }
