@@ -18,10 +18,82 @@ interface LoginRequest {
   password: string;
 }
 
-function json(payload: unknown, status = 200) {
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_LOGIN_ATTEMPTS = 5; // Max attempts per window
+const MAX_REGISTER_ATTEMPTS = 3; // Max registration attempts per window
+const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes lockout after max failures
+
+// In-memory rate limit store (resets on function cold start, which is acceptable for edge functions)
+const rateLimitStore = new Map<string, { count: number; firstAttempt: number; lockedUntil?: number }>();
+
+function getClientIP(req: Request): string {
+  // Try various headers for client IP
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  const realIP = req.headers.get("x-real-ip");
+  if (realIP) {
+    return realIP;
+  }
+  // Fallback to a default identifier
+  return "unknown";
+}
+
+function getRateLimitKey(ip: string, action: string, identifier?: string): string {
+  // Combine IP with action and optionally the user identifier for more granular limiting
+  if (identifier) {
+    return `${action}:${ip}:${identifier}`;
+  }
+  return `${action}:${ip}`;
+}
+
+function checkRateLimit(key: string, maxAttempts: number): { allowed: boolean; retryAfter?: number; remaining: number } {
+  const now = Date.now();
+  const record = rateLimitStore.get(key);
+
+  // Check if locked out
+  if (record?.lockedUntil && now < record.lockedUntil) {
+    const retryAfter = Math.ceil((record.lockedUntil - now) / 1000);
+    console.log(`Rate limit lockout for key ${key}, retry after ${retryAfter}s`);
+    return { allowed: false, retryAfter, remaining: 0 };
+  }
+
+  // Clean up expired records or lockouts that have passed
+  if (record && (now - record.firstAttempt > RATE_LIMIT_WINDOW_MS || (record.lockedUntil && now >= record.lockedUntil))) {
+    rateLimitStore.delete(key);
+  }
+
+  const currentRecord = rateLimitStore.get(key);
+
+  if (!currentRecord) {
+    rateLimitStore.set(key, { count: 1, firstAttempt: now });
+    return { allowed: true, remaining: maxAttempts - 1 };
+  }
+
+  if (currentRecord.count >= maxAttempts) {
+    // Apply lockout
+    currentRecord.lockedUntil = now + LOCKOUT_DURATION_MS;
+    rateLimitStore.set(key, currentRecord);
+    const retryAfter = Math.ceil(LOCKOUT_DURATION_MS / 1000);
+    console.log(`Rate limit exceeded for key ${key}, locking out for ${retryAfter}s`);
+    return { allowed: false, retryAfter, remaining: 0 };
+  }
+
+  currentRecord.count++;
+  rateLimitStore.set(key, currentRecord);
+  return { allowed: true, remaining: maxAttempts - currentRecord.count };
+}
+
+function resetRateLimit(key: string): void {
+  rateLimitStore.delete(key);
+}
+
+function json(payload: unknown, status = 200, headers?: Record<string, string>) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json", ...headers },
   });
 }
 
@@ -97,13 +169,49 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const action = url.pathname.split("/").pop();
+    const clientIP = getClientIP(req);
 
     if (req.method !== "POST") return json({ success: false, error: "Method not allowed" }, 405);
 
     const body = await req.json();
 
-    if (action === "register") return await handleRegister(supabase, body as RegisterRequest);
-    if (action === "login") return await handleLogin(supabase, body as LoginRequest);
+    if (action === "register") {
+      // Rate limit registration by IP
+      const rateLimitKey = getRateLimitKey(clientIP, "register");
+      const { allowed, retryAfter, remaining } = checkRateLimit(rateLimitKey, MAX_REGISTER_ATTEMPTS);
+      
+      if (!allowed) {
+        console.log(`Registration rate limited for IP: ${clientIP}`);
+        return json(
+          { success: false, error: "Quá nhiều yêu cầu đăng ký. Vui lòng thử lại sau." },
+          429,
+          { "Retry-After": String(retryAfter), "X-RateLimit-Remaining": "0" }
+        );
+      }
+
+      const result = await handleRegister(supabase, body as RegisterRequest);
+      return result;
+    }
+    
+    if (action === "login") {
+      const identifier = normalizeIdentifier((body as LoginRequest).identifier || "");
+      
+      // Rate limit login by IP + identifier combination
+      const rateLimitKey = getRateLimitKey(clientIP, "login", identifier);
+      const { allowed, retryAfter, remaining } = checkRateLimit(rateLimitKey, MAX_LOGIN_ATTEMPTS);
+      
+      if (!allowed) {
+        console.log(`Login rate limited for IP: ${clientIP}, identifier: ${identifier}`);
+        return json(
+          { success: false, error: "Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau." },
+          429,
+          { "Retry-After": String(retryAfter), "X-RateLimit-Remaining": "0" }
+        );
+      }
+
+      const result = await handleLogin(supabase, body as LoginRequest, rateLimitKey);
+      return result;
+    }
 
     return json({ success: false, error: "Unknown action" }, 400);
   } catch (error) {
@@ -167,7 +275,7 @@ async function handleRegister(supabase: any, data: RegisterRequest) {
   });
 }
 
-async function handleLogin(supabase: any, data: LoginRequest) {
+async function handleLogin(supabase: any, data: LoginRequest, rateLimitKey?: string) {
   const identifier = normalizeIdentifier(data.identifier || "");
   const password = data.password || "";
 
@@ -206,16 +314,21 @@ async function handleLogin(supabase: any, data: LoginRequest) {
   }
 
   if (!user) {
-    return json({ success: false, error: "Tài khoản không tồn tại", field: "identifier" });
+    return json({ success: false, error: "Thông tin đăng nhập không chính xác" });
   }
 
   const passwordValid = await verifyPassword(password, user.password_hash);
   if (!passwordValid) {
-    return json({ success: false, error: "Mật khẩu không đúng", field: "password" });
+    return json({ success: false, error: "Thông tin đăng nhập không chính xác" });
   }
 
   if (user.status !== "ACTIVE") {
-    return json({ success: false, error: "Tài khoản chưa được kích hoạt", field: "status" });
+    return json({ success: false, error: "Tài khoản chưa được kích hoạt. Vui lòng liên hệ quản trị viên." });
+  }
+
+  // Successful login - reset rate limit for this user
+  if (rateLimitKey) {
+    resetRateLimit(rateLimitKey);
   }
 
   // Fetch user's permissions via roles
@@ -224,6 +337,8 @@ async function handleLogin(supabase: any, data: LoginRequest) {
   const sessionToken = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const { password_hash, ...userWithoutPassword } = user;
+
+  console.log(`Successful login for user: ${user.username}`);
 
   return json({
     success: true,
