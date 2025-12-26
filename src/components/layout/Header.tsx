@@ -1,27 +1,52 @@
-import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState, useMemo } from "react";
 import { Menu, X, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAppAuth } from "@/hooks/useAppAuth";
+import { usePermissions, PERMISSIONS } from "@/hooks/usePermissions";
 
-const navItems = [
+interface NavItem {
+  label: string;
+  href: string;
+  permission?: string;
+  requireAuth?: boolean;
+}
+
+const navItems: NavItem[] = [
   { label: "Trang chủ", href: "/" },
   { label: "Giới thiệu", href: "/gioi-thieu" },
   { label: "Họ Hà", href: "/ho-ha" },
-  { label: "Cây Gia Phả", href: "/cay-gia-pha" },
+  { label: "Cây Gia Phả", href: "/cay-gia-pha", permission: PERMISSIONS.VIEW_FAMILY_TREE, requireAuth: true },
   { label: "Bài Viết", href: "/bai-viet" },
 ];
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAppAuth();
+  const { hasPermission } = usePermissions();
 
   const handleLogout = () => {
     logout();
     setIsOpen(false);
+    navigate('/');
   };
+
+  const visibleNavItems = useMemo(() => {
+    return navItems.filter((item) => {
+      // If item requires auth and user is not logged in, hide it
+      if (item.requireAuth && !user) {
+        return false;
+      }
+      // If item requires a specific permission, check it
+      if (item.permission && !hasPermission(item.permission)) {
+        return false;
+      }
+      return true;
+    });
+  }, [user, hasPermission]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -41,7 +66,7 @@ export function Header() {
 
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-1 lg:flex">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <Link
               key={item.href}
               to={item.href}
@@ -94,7 +119,7 @@ export function Header() {
       {isOpen && (
         <div className="border-t lg:hidden">
           <nav className="container flex flex-col py-4">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
