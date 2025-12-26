@@ -353,6 +353,35 @@ export type Database = {
         }
         Relationships: []
       }
+      user_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -379,6 +408,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_admin: { Args: { _user_id: string }; Returns: boolean }
       has_permission: {
         Args: { _permission_code: string; _user_id: string }
         Returns: boolean
@@ -391,9 +421,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_sub_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "moderator"
+      app_role: "admin" | "moderator" | "sub_admin"
       user_status: "PENDING" | "ACTIVE" | "INACTIVE"
     }
     CompositeTypes: {
@@ -522,7 +553,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator"],
+      app_role: ["admin", "moderator", "sub_admin"],
       user_status: ["PENDING", "ACTIVE", "INACTIVE"],
     },
   },

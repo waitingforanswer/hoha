@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -24,13 +25,20 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, MoreHorizontal, UserCheck, UserX, Key, Users } from "lucide-react";
+import { Search, MoreHorizontal, UserCheck, UserX, Key, Users, Shield, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+
+interface Permission {
+  id: string;
+  code: string;
+  name: string;
+}
 
 interface AppUser {
   id: string;
@@ -40,15 +48,21 @@ interface AppUser {
   status: "PENDING" | "ACTIVE" | "INACTIVE";
   created_at: string;
   updated_at: string;
+  roles: string[];
+  permission_ids: string[];
 }
 
 const AdminSettings = () => {
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [isFullAdmin, setIsFullAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
   const { toast } = useToast();
 
@@ -78,6 +92,8 @@ const AdminSettings = () => {
 
       if (response.data?.success) {
         setUsers(response.data.users || []);
+        setPermissions(response.data.permissions || []);
+        setIsFullAdmin(response.data.isAdmin || false);
       } else {
         throw new Error(response.data?.error || "Failed to fetch users");
       }
@@ -192,6 +208,109 @@ const AdminSettings = () => {
     }
   };
 
+  const handleToggleSubAdmin = async (user: AppUser) => {
+    setActionLoading(true);
+    const isSubAdmin = user.roles.includes("sub_admin");
+    
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error("No session");
+      }
+
+      const response = await supabase.functions.invoke("admin-users/assign-sub-admin", {
+        body: { user_id: user.id, assign: !isSubAdmin },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.success) {
+        toast({
+          title: "Thành công",
+          description: isSubAdmin 
+            ? `Đã gỡ quyền Sub-Admin cho ${user.username}` 
+            : `Đã gán quyền Sub-Admin cho ${user.username}`,
+        });
+        fetchUsers();
+      } else {
+        throw new Error(response.data?.error || "Failed to update role");
+      }
+    } catch (error: any) {
+      console.error("Toggle sub-admin error:", error);
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể cập nhật quyền",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenPermissionsDialog = (user: AppUser) => {
+    setSelectedUser(user);
+    setSelectedPermissions(user.permission_ids || []);
+    setPermissionsDialogOpen(true);
+  };
+
+  const handleUpdatePermissions = async () => {
+    if (!selectedUser) return;
+
+    setActionLoading(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error("No session");
+      }
+
+      const response = await supabase.functions.invoke("admin-users/update-permissions", {
+        body: { user_id: selectedUser.id, permission_ids: selectedPermissions },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.success) {
+        toast({
+          title: "Thành công",
+          description: `Đã cập nhật quyền cho ${selectedUser.username}`,
+        });
+        setPermissionsDialogOpen(false);
+        setSelectedUser(null);
+        setSelectedPermissions([]);
+        fetchUsers();
+      } else {
+        throw new Error(response.data?.error || "Failed to update permissions");
+      }
+    } catch (error: any) {
+      console.error("Update permissions error:", error);
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể cập nhật quyền",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const togglePermission = (permissionId: string) => {
+    setSelectedPermissions(prev => 
+      prev.includes(permissionId)
+        ? prev.filter(id => id !== permissionId)
+        : [...prev, permissionId]
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE":
@@ -203,6 +322,28 @@ const AdminSettings = () => {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const getRoleBadges = (roles: string[]) => {
+    return roles.map((role) => {
+      if (role === "admin") {
+        return (
+          <Badge key={role} className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20">
+            <ShieldCheck className="mr-1 h-3 w-3" />
+            Admin
+          </Badge>
+        );
+      }
+      if (role === "sub_admin") {
+        return (
+          <Badge key={role} className="bg-blue-500/10 text-blue-600 hover:bg-blue-500/20">
+            <Shield className="mr-1 h-3 w-3" />
+            Sub-Admin
+          </Badge>
+        );
+      }
+      return null;
+    });
   };
 
   const filteredUsers = users.filter(
@@ -262,6 +403,7 @@ const AdminSettings = () => {
                       <TableHead>Họ tên</TableHead>
                       <TableHead>Số điện thoại</TableHead>
                       <TableHead>Trạng thái</TableHead>
+                      <TableHead>Vai trò</TableHead>
                       <TableHead>Ngày tạo</TableHead>
                       <TableHead className="w-[70px]"></TableHead>
                     </TableRow>
@@ -273,6 +415,11 @@ const AdminSettings = () => {
                         <TableCell>{user.full_name}</TableCell>
                         <TableCell>{user.phone}</TableCell>
                         <TableCell>{getStatusBadge(user.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {getRoleBadges(user.roles)}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {format(new Date(user.created_at), "dd/MM/yyyy", { locale: vi })}
                         </TableCell>
@@ -311,6 +458,26 @@ const AdminSettings = () => {
                                 <Key className="mr-2 h-4 w-4" />
                                 Đổi mật khẩu
                               </DropdownMenuItem>
+                              
+                              {isFullAdmin && !user.roles.includes("admin") && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleToggleSubAdmin(user)}
+                                  >
+                                    <Shield className="mr-2 h-4 w-4" />
+                                    {user.roles.includes("sub_admin") ? "Gỡ Sub-Admin" : "Gán Sub-Admin"}
+                                  </DropdownMenuItem>
+                                  {user.roles.includes("sub_admin") && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleOpenPermissionsDialog(user)}
+                                    >
+                                      <ShieldCheck className="mr-2 h-4 w-4" />
+                                      Phân quyền
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -354,6 +521,51 @@ const AdminSettings = () => {
             </Button>
             <Button onClick={handleChangePassword} disabled={actionLoading || !newPassword}>
               {actionLoading ? "Đang xử lý..." : "Đổi mật khẩu"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Permissions Dialog */}
+      <Dialog open={permissionsDialogOpen} onOpenChange={setPermissionsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Phân quyền Sub-Admin</DialogTitle>
+            <DialogDescription>
+              Chọn quyền cho <strong>{selectedUser?.username}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3 max-h-[300px] overflow-y-auto">
+            {permissions.map((permission) => (
+              <div key={permission.id} className="flex items-center space-x-3">
+                <Checkbox
+                  id={permission.id}
+                  checked={selectedPermissions.includes(permission.id)}
+                  onCheckedChange={() => togglePermission(permission.id)}
+                />
+                <label
+                  htmlFor={permission.id}
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  {permission.name}
+                  <span className="ml-2 text-muted-foreground text-xs">({permission.code})</span>
+                </label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPermissionsDialogOpen(false);
+                setSelectedUser(null);
+                setSelectedPermissions([]);
+              }}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleUpdatePermissions} disabled={actionLoading}>
+              {actionLoading ? "Đang xử lý..." : "Lưu quyền"}
             </Button>
           </DialogFooter>
         </DialogContent>

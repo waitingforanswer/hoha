@@ -68,16 +68,19 @@ serve(async (req) => {
       return json({ success: false, error: "Unauthorized" }, 401);
     }
 
-    // Check if user is admin
-    const { data: isAdmin } = await supabase.rpc("is_admin", { _user_id: authUser.id });
-    if (!isAdmin) {
-      return json({ success: false, error: "Forbidden - Admin only" }, 403);
+    // Check if user can access admin (admin or sub_admin)
+    const { data: canAccess } = await supabase.rpc("can_access_admin", { _user_id: authUser.id });
+    if (!canAccess) {
+      return json({ success: false, error: "Forbidden - Admin access required" }, 403);
     }
+
+    // Check if user is full admin (for role management)
+    const { data: isAdmin } = await supabase.rpc("is_admin", { _user_id: authUser.id });
 
     const url = new URL(req.url);
     const action = url.pathname.split("/").pop();
 
-    // GET: List all users
+    // GET: List all users with their roles
     if (req.method === "GET") {
       const { data: users, error } = await supabase
         .from("app_users")
@@ -89,10 +92,56 @@ serve(async (req) => {
         return json({ success: false, error: "Failed to fetch users" }, 500);
       }
 
-      return json({ success: true, users });
+      // Fetch all permissions
+      const { data: allPermissions } = await supabase
+        .from("permissions")
+        .select("id, code, name")
+        .order("name");
+
+      // Fetch user roles (sub_admin roles from user_roles table)
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+
+      // Fetch user permissions
+      const { data: userPermissions } = await supabase
+        .from("user_permissions")
+        .select("user_id, permission_id");
+
+      // Create a map of user roles
+      const userRolesMap: Record<string, string[]> = {};
+      userRoles?.forEach((ur) => {
+        if (!userRolesMap[ur.user_id]) {
+          userRolesMap[ur.user_id] = [];
+        }
+        userRolesMap[ur.user_id].push(ur.role);
+      });
+
+      // Create a map of user permissions
+      const userPermissionsMap: Record<string, string[]> = {};
+      userPermissions?.forEach((up) => {
+        if (!userPermissionsMap[up.user_id]) {
+          userPermissionsMap[up.user_id] = [];
+        }
+        userPermissionsMap[up.user_id].push(up.permission_id);
+      });
+
+      // Enhance users with roles and permissions
+      const enhancedUsers = users?.map((user) => ({
+        ...user,
+        roles: userRolesMap[user.id] || [],
+        permission_ids: userPermissionsMap[user.id] || [],
+      }));
+
+      return json({ 
+        success: true, 
+        users: enhancedUsers,
+        permissions: allPermissions || [],
+        isAdmin: isAdmin || false,
+      });
     }
 
-    // POST: Update status or change password
+    // POST: Various admin actions
     if (req.method !== "POST") {
       return json({ success: false, error: "Method not allowed" }, 405);
     }
@@ -127,7 +176,7 @@ serve(async (req) => {
           .from("roles")
           .select("id")
           .eq("code", "USER")
-          .single();
+          .maybeSingle();
 
         if (userRole) {
           // Insert role if not exists
@@ -141,7 +190,7 @@ serve(async (req) => {
           .from("roles")
           .select("id")
           .eq("code", "USER")
-          .single();
+          .maybeSingle();
 
         if (userRole) {
           await supabase
@@ -181,6 +230,86 @@ serve(async (req) => {
 
       console.log(`User ${user_id} password changed by admin ${authUser.id}`);
       return json({ success: true, message: "Password changed successfully" });
+    }
+
+    // Only full admins can manage roles
+    if (action === "assign-sub-admin") {
+      if (!isAdmin) {
+        return json({ success: false, error: "Only admins can assign sub_admin role" }, 403);
+      }
+
+      const { user_id, assign } = body;
+      
+      if (!user_id || typeof assign !== "boolean") {
+        return json({ success: false, error: "Missing user_id or assign" }, 400);
+      }
+
+      if (assign) {
+        // Assign sub_admin role
+        const { error } = await supabase
+          .from("user_roles")
+          .upsert({ user_id, role: "sub_admin" }, { onConflict: "user_id,role" });
+
+        if (error) {
+          console.error("Assign sub_admin error:", error);
+          return json({ success: false, error: "Failed to assign sub_admin role" }, 500);
+        }
+        console.log(`User ${user_id} assigned sub_admin role by admin ${authUser.id}`);
+      } else {
+        // Remove sub_admin role
+        const { error } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", user_id)
+          .eq("role", "sub_admin");
+
+        if (error) {
+          console.error("Remove sub_admin error:", error);
+          return json({ success: false, error: "Failed to remove sub_admin role" }, 500);
+        }
+        console.log(`User ${user_id} removed sub_admin role by admin ${authUser.id}`);
+      }
+
+      return json({ success: true, message: assign ? "Sub-admin role assigned" : "Sub-admin role removed" });
+    }
+
+    // Only full admins can manage permissions for sub_admins
+    if (action === "update-permissions") {
+      if (!isAdmin) {
+        return json({ success: false, error: "Only admins can manage permissions" }, 403);
+      }
+
+      const { user_id, permission_ids } = body;
+      
+      if (!user_id || !Array.isArray(permission_ids)) {
+        return json({ success: false, error: "Missing user_id or permission_ids" }, 400);
+      }
+
+      // Delete all existing permissions for this user
+      await supabase
+        .from("user_permissions")
+        .delete()
+        .eq("user_id", user_id);
+
+      // Insert new permissions
+      if (permission_ids.length > 0) {
+        const permissionsToInsert = permission_ids.map((permission_id: string) => ({
+          user_id,
+          permission_id,
+        }));
+
+        const { error } = await supabase
+          .from("user_permissions")
+          .insert(permissionsToInsert);
+
+        if (error) {
+          console.error("Update permissions error:", error);
+          return json({ success: false, error: "Failed to update permissions" }, 500);
+        }
+      }
+
+      console.log(`User ${user_id} permissions updated by admin ${authUser.id}`);
+      return json({ success: true, message: "Permissions updated successfully" });
     }
 
     return json({ success: false, error: "Unknown action" }, 400);

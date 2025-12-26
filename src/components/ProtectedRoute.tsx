@@ -12,7 +12,7 @@ export function ProtectedRoute({
   requireAdmin = false,
   redirectTo = "/admin/login"
 }: ProtectedRouteProps) {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, canAccessAdmin, loading } = useAuth();
 
   if (loading) {
     return (
@@ -26,8 +26,8 @@ export function ProtectedRoute({
     return <Navigate to={redirectTo} replace />;
   }
 
-  if (requireAdmin && !isAdmin) {
-    // Logged in but not admin - redirect to app login
+  if (requireAdmin && !canAccessAdmin) {
+    // Logged in but not admin/sub_admin - redirect to app login
     return <Navigate to="/auth" replace />;
   }
 
