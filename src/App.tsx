@@ -30,7 +30,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
+              <Route path="/login" element={<Auth />} />
               <Route 
                 path="/cay-gia-pha" 
                 element={

@@ -1,8 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAppAuth } from "@/hooks/useAppAuth";
 
 const navItems = [
   { label: "Trang chủ", href: "/" },
@@ -15,6 +16,12 @@ const navItems = [
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const { user, logout } = useAppAuth();
+
+  const handleLogout = () => {
+    logout();
+    setIsOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -50,13 +57,26 @@ export function Header() {
           ))}
         </nav>
 
-        {/* Admin Link */}
+        {/* Auth Section */}
         <div className="hidden items-center gap-4 lg:flex">
-          <Link to="/admin/login">
-            <Button variant="outline" size="sm">
-              Quản trị
-            </Button>
-          </Link>
+          {user ? (
+            <>
+              <span className="text-sm font-medium text-foreground">
+                {user.full_name}
+              </span>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Đăng xuất
+              </Button>
+            </>
+          ) : (
+            <Link to="/login">
+              <Button variant="outline" size="sm">
+                <LogIn className="mr-2 h-4 w-4" />
+                Đăng nhập / Đăng ký
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -89,12 +109,25 @@ export function Header() {
                 {item.label}
               </Link>
             ))}
-            <div className="mt-4 border-t pt-4">
-              <Link to="/admin/login" onClick={() => setIsOpen(false)}>
-                <Button variant="outline" size="sm" className="w-full">
-                  Quản trị
-                </Button>
-              </Link>
+            <div className="mt-4 border-t pt-4 space-y-2">
+              {user ? (
+                <>
+                  <p className="text-sm font-medium text-foreground px-1">
+                    {user.full_name}
+                  </p>
+                  <Button variant="outline" size="sm" className="w-full" onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Đăng xuất
+                  </Button>
+                </>
+              ) : (
+                <Link to="/login" onClick={() => setIsOpen(false)}>
+                  <Button variant="outline" size="sm" className="w-full">
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Đăng nhập / Đăng ký
+                  </Button>
+                </Link>
+              )}
             </div>
           </nav>
         </div>
