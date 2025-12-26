@@ -6,6 +6,8 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  isSubAdmin: boolean;
+  canAccessAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -16,6 +18,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSubAdmin, setIsSubAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,13 +28,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Defer admin check with setTimeout to avoid deadlock
+        // Defer role check with setTimeout to avoid deadlock
         if (session?.user) {
           setTimeout(() => {
-            checkAdminRole(session.user.id);
+            checkRoles(session.user.id);
           }, 0);
         } else {
           setIsAdmin(false);
+          setIsSubAdmin(false);
         }
       }
     );
@@ -41,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        checkAdminRole(session.user.id);
+        checkRoles(session.user.id);
       }
       setLoading(false);
     });
@@ -49,13 +53,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminRole = async (userId: string) => {
-    const { data, error } = await supabase.rpc("is_admin", { _user_id: userId });
-    if (!error && data) {
-      setIsAdmin(true);
-    } else {
-      setIsAdmin(false);
-    }
+  const checkRoles = async (userId: string) => {
+    // Check admin and sub_admin roles in parallel
+    const [adminResult, subAdminResult] = await Promise.all([
+      supabase.rpc("is_admin", { _user_id: userId }),
+      supabase.rpc("is_sub_admin", { _user_id: userId }),
+    ]);
+
+    setIsAdmin(!adminResult.error && adminResult.data === true);
+    setIsSubAdmin(!subAdminResult.error && subAdminResult.data === true);
   };
 
   const signOut = async () => {
@@ -63,10 +69,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setSession(null);
     setIsAdmin(false);
+    setIsSubAdmin(false);
   };
 
+  const canAccessAdmin = isAdmin || isSubAdmin;
+
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSubAdmin, canAccessAdmin, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
