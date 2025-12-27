@@ -119,6 +119,12 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   
+  // Touch gesture states
+  const [isTouching, setIsTouching] = useState(false);
+  const [touchStart, setTouchStart] = useState({ x: 0, y: 0 });
+  const [lastTouchDistance, setLastTouchDistance] = useState(0);
+  const [isPinching, setIsPinching] = useState(false);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const fullscreenRef = useRef<HTMLDivElement>(null);
@@ -126,11 +132,11 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const { rootMembers, memberMap, getChildrenForCouple, getSpouse } = buildFamilyTree(members);
   
   const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.1, 3));
+    setZoom(prev => Math.min(prev + 0.2, 3));
   };
   
   const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.1, 0.3));
+    setZoom(prev => Math.max(prev - 0.2, 0.3));
   };
   
   const handleResetZoom = () => {
@@ -181,6 +187,70 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
   }, []);
+
+  // Touch handlers for mobile/tablet
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // Don't start dragging if touching a link or button
+    if ((e.target as HTMLElement).closest('a, button')) return;
+    
+    if (e.touches.length === 2) {
+      // Pinch zoom start
+      setIsPinching(true);
+      const distance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setLastTouchDistance(distance);
+    } else if (e.touches.length === 1) {
+      // Single touch drag start
+      setIsTouching(true);
+      setTouchStart({
+        x: e.touches[0].clientX - position.x,
+        y: e.touches[0].clientY - position.y
+      });
+    }
+  }, [position]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && isPinching) {
+      // Pinch zoom
+      e.preventDefault();
+      const distance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      
+      if (lastTouchDistance > 0) {
+        const scale = distance / lastTouchDistance;
+        setZoom(prev => Math.max(0.3, Math.min(3, prev * scale)));
+      }
+      setLastTouchDistance(distance);
+    } else if (e.touches.length === 1 && isTouching && !isPinching) {
+      // Single touch drag
+      e.preventDefault();
+      setPosition({
+        x: e.touches[0].clientX - touchStart.x,
+        y: e.touches[0].clientY - touchStart.y
+      });
+    }
+  }, [isTouching, isPinching, touchStart, lastTouchDistance]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 0) {
+      setIsTouching(false);
+      setIsPinching(false);
+      setLastTouchDistance(0);
+    } else if (e.touches.length === 1) {
+      // Switched from pinch to single touch
+      setIsPinching(false);
+      setLastTouchDistance(0);
+      setIsTouching(true);
+      setTouchStart({
+        x: e.touches[0].clientX - position.x,
+        y: e.touches[0].clientY - position.y
+      });
+    }
+  }, [position]);
 
   // Handle minimap click to navigate
   const handleMinimapClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -243,45 +313,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     };
   }, [members, zoom, isFullscreen]);
 
-  // Handle pinch zoom on mobile
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    
-    let initialDistance = 0;
-    let initialZoom = zoom;
-    
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        initialDistance = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        initialZoom = zoom;
-      }
-    };
-    
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        const currentDistance = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        const scale = currentDistance / initialDistance;
-        const newZoom = Math.max(0.3, Math.min(3, initialZoom * scale));
-        setZoom(newZoom);
-      }
-    };
-    
-    container.addEventListener("touchstart", handleTouchStart);
-    container.addEventListener("touchmove", handleTouchMove, { passive: false });
-    
-    return () => {
-      container.removeEventListener("touchstart", handleTouchStart);
-      container.removeEventListener("touchmove", handleTouchMove);
-    };
-  }, [zoom]);
+  // Touch zoom and drag are now handled via React event handlers
 
   // Handle escape key to exit fullscreen
   useEffect(() => {
@@ -442,6 +474,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
         <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
           <Move className="h-3 w-3" />
           <span className="hidden sm:inline">Giữ chuột để kéo | Ctrl/⌘ + Scroll để zoom</span>
+          <span className="sm:hidden">Chạm để kéo | Chụm để zoom</span>
         </div>
       </div>
       
@@ -449,14 +482,18 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
       <div 
         ref={containerRef}
         className={cn(
-          "overflow-hidden border rounded-lg bg-muted/30 select-none",
+          "overflow-hidden border rounded-lg bg-muted/30 select-none touch-none",
           isFullscreen ? "flex-1" : "min-h-[400px] max-h-[70vh]",
-          isDragging ? "cursor-grabbing" : "cursor-grab"
+          isDragging || isTouching ? "cursor-grabbing" : "cursor-grab"
         )}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         <div 
           ref={contentRef}
