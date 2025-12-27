@@ -21,8 +21,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Crop, RefreshCw } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import AvatarCropper from "./AvatarCropper";
 
 type FamilyMember = Tables<"family_members">;
 
@@ -64,6 +65,9 @@ const MemberForm = ({
   const [loading, setLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
+  const [hasExistingAvatar, setHasExistingAvatar] = useState(false);
   const { toast } = useToast();
 
   const {
@@ -100,7 +104,6 @@ const MemberForm = ({
 
   useEffect(() => {
     if (member) {
-      // Map old is_primary_lineage to new lineage_type if lineage_type not set
       let lineageTypeValue: "primary" | "spouse" | "maternal" = "primary";
       if ((member as any).lineage_type) {
         lineageTypeValue = (member as any).lineage_type;
@@ -126,6 +129,7 @@ const MemberForm = ({
         spouse_id: member.spouse_id || "",
       });
       setAvatarPreview(member.avatar_url);
+      setHasExistingAvatar(!!member.avatar_url);
     } else {
       reset({
         full_name: "",
@@ -145,11 +149,13 @@ const MemberForm = ({
         spouse_id: "",
       });
       setAvatarPreview(null);
+      setHasExistingAvatar(false);
     }
     setAvatarFile(null);
+    setRawImageSrc(null);
   }, [member, reset]);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -160,15 +166,44 @@ const MemberForm = ({
         });
         return;
       }
-      setAvatarFile(file);
-      setAvatarPreview(URL.createObjectURL(file));
+      const imageUrl = URL.createObjectURL(file);
+      setRawImageSrc(imageUrl);
+      setCropperOpen(true);
     }
+    // Reset input to allow selecting the same file again
+    e.target.value = "";
+  };
+
+  const handleCropComplete = (croppedBlob: Blob) => {
+    const file = new File([croppedBlob], "avatar.jpg", { type: "image/jpeg" });
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(croppedBlob));
+    setRawImageSrc(null);
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setHasExistingAvatar(false);
+  };
+
+  const handleChangeAvatar = () => {
+    const input = document.getElementById("avatar-input") as HTMLInputElement;
+    input?.click();
   };
 
   const uploadAvatar = async (memberId: string): Promise<string | null> => {
-    if (!avatarFile) return member?.avatar_url || null;
+    // If avatar was removed
+    if (!avatarPreview && !avatarFile) {
+      return null;
+    }
+    
+    // If no new file selected, return existing URL
+    if (!avatarFile) {
+      return member?.avatar_url || null;
+    }
 
-    const fileExt = avatarFile.name.split(".").pop();
+    const fileExt = "jpg";
     const filePath = `${memberId}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
@@ -181,7 +216,8 @@ const MemberForm = ({
     }
 
     const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    return data.publicUrl;
+    // Add timestamp to bust cache
+    return `${data.publicUrl}?t=${Date.now()}`;
   };
 
   const onSubmit = async (data: MemberFormData) => {
@@ -208,7 +244,6 @@ const MemberForm = ({
       };
 
       if (member) {
-        // Update existing member
         const avatarUrl = await uploadAvatar(member.id);
         
         const { error } = await supabase
@@ -220,7 +255,6 @@ const MemberForm = ({
 
         toast({ title: "Đã cập nhật thành viên!" });
       } else {
-        // Create new member
         const { data: newMember, error } = await supabase
           .from("family_members")
           .insert(memberData)
@@ -229,7 +263,6 @@ const MemberForm = ({
 
         if (error) throw error;
 
-        // Upload avatar if exists
         if (avatarFile && newMember) {
           const avatarUrl = await uploadAvatar(newMember.id);
           if (avatarUrl) {
@@ -264,300 +297,336 @@ const MemberForm = ({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="font-serif text-xl">
-            {member ? "Chỉnh sửa thành viên" : "Thêm thành viên mới"}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">
+              {member ? "Chỉnh sửa thành viên" : "Thêm thành viên mới"}
+            </DialogTitle>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Avatar upload */}
-          <div className="flex items-center gap-4">
-            <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-dashed border-muted-foreground/30">
-              {avatarPreview ? (
-                <>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {/* Avatar upload */}
+            <div className="flex items-start gap-4">
+              <div className="relative h-24 w-24 overflow-hidden rounded-lg border-2 border-dashed border-muted-foreground/30 flex-shrink-0">
+                {avatarPreview ? (
                   <img
                     src={avatarPreview}
                     alt="Avatar"
                     className="h-full w-full object-cover"
                   />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAvatarFile(null);
-                      setAvatarPreview(null);
-                    }}
-                    className="absolute right-0 top-0 rounded-full bg-destructive p-1 text-destructive-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </>
-              ) : (
-                <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center text-muted-foreground hover:text-foreground">
-                  <Upload className="h-6 w-6" />
-                  <span className="mt-1 text-xs">Upload</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleAvatarChange}
-                  />
-                </label>
-              )}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              <p>Tải lên ảnh đại diện</p>
-              <p>Định dạng: JPG, PNG. Tối đa: 5MB</p>
-            </div>
-          </div>
-
-          {/* Basic info */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="full_name">Họ và tên *</Label>
-              <Input
-                id="full_name"
-                {...register("full_name")}
-                placeholder="Nguyễn Văn A"
-              />
-              {errors.full_name && (
-                <p className="text-sm text-destructive">
-                  {errors.full_name.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Giới tính</Label>
-              <Select
-                value={watch("gender")}
-                onValueChange={(value) => setValue("gender", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn giới tính" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Nam</SelectItem>
-                  <SelectItem value="female">Nữ</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="birth_date">Ngày sinh</Label>
-              <Input id="birth_date" type="date" {...register("birth_date")} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Còn sống</Label>
-              <Select
-                value={isAlive ? "true" : "false"}
-                onValueChange={(value) => setValue("is_alive", value === "true")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Còn sống</SelectItem>
-                  <SelectItem value="false">Đã mất</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {!isAlive && (
-              <div className="space-y-2">
-                <Label htmlFor="death_date">Ngày mất</Label>
-                <Input id="death_date" type="date" {...register("death_date")} />
+                ) : (
+                  <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center text-muted-foreground hover:text-foreground">
+                    <Upload className="h-6 w-6" />
+                    <span className="mt-1 text-xs">Upload</span>
+                    <input
+                      id="avatar-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarSelect}
+                    />
+                  </label>
+                )}
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="generation">Đời thứ *</Label>
-              <Input
-                id="generation"
-                type="number"
-                min={1}
-                max={20}
-                {...register("generation", { valueAsNumber: true })}
-              />
-            </div>
-          </div>
-
-          {/* Lineage info */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Phân loại dòng tộc</Label>
-              <Select
-                value={lineageType}
-                onValueChange={(value) => setValue("lineage_type", value as "primary" | "spouse" | "maternal")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="primary">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded border-2 border-lineage-primary" />
-                      <span>Họ Hà (huyết thống chính)</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="spouse">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded border-2 border-dashed border-lineage-secondary-light" />
-                      <span>Dâu/Rể (kết hôn vào họ)</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="maternal">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded border-2 border-foreground/50" />
-                      <span>Khác</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Phân loại thành viên trong dòng họ
-              </p>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">Ảnh đại diện</p>
+                <p className="text-xs text-muted-foreground">
+                  Định dạng: JPG, PNG. Tối đa: 5MB. Ảnh sẽ được cắt thành hình vuông.
+                </p>
+                {avatarPreview && (
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleChangeAvatar}
+                    >
+                      <RefreshCw className="mr-1 h-3 w-3" />
+                      Thay đổi
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveAvatar}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="mr-1 h-3 w-3" />
+                      Xóa
+                    </Button>
+                    <input
+                      id="avatar-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarSelect}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Vợ/Chồng</Label>
-              <Select
-                value={watch("spouse_id") || ""}
-                onValueChange={(value) => setValue("spouse_id", value === "none" ? "" : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn vợ/chồng" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-- Không có --</SelectItem>
-                  {allMembers
-                    .filter(m => m.id !== member?.id && m.gender !== currentGender)
-                    .map((m) => (
+            {/* Basic info */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Họ và tên *</Label>
+                <Input
+                  id="full_name"
+                  {...register("full_name")}
+                  placeholder="Nguyễn Văn A"
+                />
+                {errors.full_name && (
+                  <p className="text-sm text-destructive">
+                    {errors.full_name.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Giới tính</Label>
+                <Select
+                  value={watch("gender")}
+                  onValueChange={(value) => setValue("gender", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn giới tính" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Nam</SelectItem>
+                    <SelectItem value="female">Nữ</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="birth_date">Ngày sinh</Label>
+                <Input id="birth_date" type="date" {...register("birth_date")} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Còn sống</Label>
+                <Select
+                  value={isAlive ? "true" : "false"}
+                  onValueChange={(value) => setValue("is_alive", value === "true")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Còn sống</SelectItem>
+                    <SelectItem value="false">Đã mất</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!isAlive && (
+                <div className="space-y-2">
+                  <Label htmlFor="death_date">Ngày mất</Label>
+                  <Input id="death_date" type="date" {...register("death_date")} />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="generation">Đời thứ *</Label>
+                <Input
+                  id="generation"
+                  type="number"
+                  min={1}
+                  max={20}
+                  {...register("generation", { valueAsNumber: true })}
+                />
+              </div>
+            </div>
+
+            {/* Lineage info */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Phân loại dòng tộc</Label>
+                <Select
+                  value={lineageType}
+                  onValueChange={(value) => setValue("lineage_type", value as "primary" | "spouse" | "maternal")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded border-2 border-lineage-primary" />
+                        <span>Họ Hà (huyết thống chính)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="spouse">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded border-2 border-dashed border-lineage-secondary-light" />
+                        <span>Dâu/Rể (kết hôn vào họ)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="maternal">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded border-2 border-foreground/50" />
+                        <span>Khác</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Phân loại thành viên trong dòng họ
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vợ/Chồng</Label>
+                <Select
+                  value={watch("spouse_id") || ""}
+                  onValueChange={(value) => setValue("spouse_id", value === "none" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn vợ/chồng" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-- Không có --</SelectItem>
+                    {allMembers
+                      .filter(m => m.id !== member?.id && m.gender !== currentGender)
+                      .map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.full_name} (Đời {m.generation})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Parent info */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Bố</Label>
+                <Select
+                  value={watch("father_id") || ""}
+                  onValueChange={(value) => setValue("father_id", value === "none" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn bố" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-- Không có --</SelectItem>
+                    {maleMembers.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         {m.full_name} (Đời {m.generation})
                       </SelectItem>
                     ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Parent info */}
-          <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Mẹ</Label>
+                <Select
+                  value={watch("mother_id") || ""}
+                  onValueChange={(value) => setValue("mother_id", value === "none" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn mẹ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-- Không có --</SelectItem>
+                    {femaleMembers.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.full_name} (Đời {m.generation})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Contact info */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="phone">Số điện thoại</Label>
+                <Input
+                  id="phone"
+                  {...register("phone")}
+                  placeholder="0123456789"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  {...register("email")}
+                  placeholder="example@email.com"
+                />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="occupation">Nghề nghiệp</Label>
+                <Input
+                  id="occupation"
+                  {...register("occupation")}
+                  placeholder="Kỹ sư, Bác sĩ..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Địa chỉ</Label>
+                <Input
+                  id="address"
+                  {...register("address")}
+                  placeholder="Hà Nội, Việt Nam"
+                />
+              </div>
+            </div>
+
+            {/* Bio */}
             <div className="space-y-2">
-              <Label>Bố</Label>
-              <Select
-                value={watch("father_id") || ""}
-                onValueChange={(value) => setValue("father_id", value === "none" ? "" : value)}
+              <Label htmlFor="bio">Tiểu sử</Label>
+              <Textarea
+                id="bio"
+                {...register("bio")}
+                placeholder="Mô tả ngắn về thành viên..."
+                rows={3}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn bố" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-- Không có --</SelectItem>
-                  {maleMembers.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.full_name} (Đời {m.generation})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                Hủy
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Đang lưu..." : member ? "Cập nhật" : "Thêm mới"}
+              </Button>
             </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <div className="space-y-2">
-              <Label>Mẹ</Label>
-              <Select
-                value={watch("mother_id") || ""}
-                onValueChange={(value) => setValue("mother_id", value === "none" ? "" : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn mẹ" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">-- Không có --</SelectItem>
-                  {femaleMembers.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.full_name} (Đời {m.generation})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Contact info */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="phone">Số điện thoại</Label>
-              <Input
-                id="phone"
-                {...register("phone")}
-                placeholder="0123456789"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                {...register("email")}
-                placeholder="example@email.com"
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="occupation">Nghề nghiệp</Label>
-              <Input
-                id="occupation"
-                {...register("occupation")}
-                placeholder="Kỹ sư, Bác sĩ..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="address">Địa chỉ</Label>
-              <Input
-                id="address"
-                {...register("address")}
-                placeholder="Hà Nội, Việt Nam"
-              />
-            </div>
-          </div>
-
-          {/* Bio */}
-          <div className="space-y-2">
-            <Label htmlFor="bio">Tiểu sử</Label>
-            <Textarea
-              id="bio"
-              {...register("bio")}
-              placeholder="Mô tả ngắn về thành viên..."
-              rows={3}
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Hủy
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Đang lưu..." : member ? "Cập nhật" : "Thêm mới"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+      {/* Avatar Cropper */}
+      {rawImageSrc && (
+        <AvatarCropper
+          open={cropperOpen}
+          onOpenChange={(open) => {
+            setCropperOpen(open);
+            if (!open) setRawImageSrc(null);
+          }}
+          imageSrc={rawImageSrc}
+          onCropComplete={handleCropComplete}
+        />
+      )}
+    </>
   );
 };
 
