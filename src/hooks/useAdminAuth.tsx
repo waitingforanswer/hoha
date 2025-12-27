@@ -144,24 +144,19 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchAppUserPermissions = async (userId: string): Promise<string[]> => {
     try {
-      const { data: userPermissions, error } = await supabase
-        .from("user_permissions")
-        .select(`
-          permission_id,
-          permissions:permission_id (
-            code
-          )
-        `)
-        .eq("user_id", userId);
+      console.log("Fetching permissions via Edge Function for user:", userId);
+      
+      const response = await supabase.functions.invoke("get-user-permissions", {
+        body: { userId },
+      });
 
-      if (error) {
-        console.error("Error fetching user permissions:", error);
+      if (response.error) {
+        console.error("Error fetching user permissions:", response.error);
         return [];
       }
 
-      const permissionCodes = userPermissions
-        ?.map((up: any) => up.permissions?.code)
-        .filter(Boolean) || [];
+      const permissionCodes = response.data?.permissions || [];
+      console.log("Fetched permissions:", permissionCodes);
       
       return permissionCodes;
     } catch (error) {
