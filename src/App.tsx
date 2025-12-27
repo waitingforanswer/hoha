@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppAuthProvider } from "@/hooks/useAppAuth";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminAuthProvider } from "@/hooks/useAdminAuth";
 import { PermissionProtectedRoute } from "@/components/PermissionProtectedRoute";
+import { AdminProtectedRoute } from "@/components/admin/AdminProtectedRoute";
 import { PERMISSIONS } from "@/hooks/usePermissions";
 import Index from "./pages/Index";
 import FamilyTree from "./pages/FamilyTree";
@@ -27,83 +28,85 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <AppAuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Auth />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route
-                path="/cay-gia-pha" 
-                element={
-                  <PermissionProtectedRoute requiredPermission={PERMISSIONS.VIEW_FAMILY_TREE}>
-                    <FamilyTree />
-                  </PermissionProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/thanh-vien/:id" 
-                element={
-                  <PermissionProtectedRoute requiredPermission={PERMISSIONS.VIEW_MEMBER_DETAIL}>
-                    <MemberDetail />
-                  </PermissionProtectedRoute>
-                } 
-              />
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route 
-                path="/admin" 
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/members" 
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <AdminMembers />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/settings" 
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <AdminSettings />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/settings/menu" 
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <MenuManagement />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/settings/footer" 
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <FooterManagement />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/settings/pages" 
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <PagesManagement />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <AdminAuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Auth />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route
+                  path="/cay-gia-pha" 
+                  element={
+                    <PermissionProtectedRoute requiredPermission={PERMISSIONS.VIEW_FAMILY_TREE}>
+                      <FamilyTree />
+                    </PermissionProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/thanh-vien/:id" 
+                  element={
+                    <PermissionProtectedRoute requiredPermission={PERMISSIONS.VIEW_MEMBER_DETAIL}>
+                      <MemberDetail />
+                    </PermissionProtectedRoute>
+                  } 
+                />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route 
+                  path="/admin" 
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminDashboard />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/members" 
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminMembers />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/settings" 
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminSettings />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/settings/menu" 
+                  element={
+                    <AdminProtectedRoute>
+                      <MenuManagement />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/settings/footer" 
+                  element={
+                    <AdminProtectedRoute>
+                      <FooterManagement />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/settings/pages" 
+                  element={
+                    <AdminProtectedRoute>
+                      <PagesManagement />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AdminAuthProvider>
       </AppAuthProvider>
     </AuthProvider>
   </QueryClientProvider>
