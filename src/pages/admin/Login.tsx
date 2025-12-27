@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Lock, Mail, UserPlus, LogIn, Info } from "lucide-react";
+import { Lock, Mail, UserPlus, LogIn, Info, Home } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "react-router-dom";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
@@ -99,6 +100,12 @@ const AdminLogin = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-subtle p-4">
       <div className="w-full max-w-md space-y-4">
+        <Button variant="ghost" asChild className="mb-2">
+          <Link to="/" className="flex items-center gap-2">
+            <Home className="h-4 w-4" />
+            Về trang chủ
+          </Link>
+        </Button>
         <Card className="shadow-elegant">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
