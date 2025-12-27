@@ -408,6 +408,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      app_user_has_permission: {
+        Args: { _permission_code: string; _user_id: string }
+        Returns: boolean
+      }
       can_access_admin: { Args: { _user_id: string }; Returns: boolean }
       has_permission: {
         Args: { _permission_code: string; _user_id: string }
