@@ -65,7 +65,7 @@ const App = () => (
                 <Route 
                   path="/admin/members" 
                   element={
-                    <AdminProtectedRoute>
+                    <AdminProtectedRoute requiredPermission="MANAGE_MEMBERS">
                       <AdminMembers />
                     </AdminProtectedRoute>
                   } 
@@ -73,7 +73,7 @@ const App = () => (
                 <Route 
                   path="/admin/settings" 
                   element={
-                    <AdminProtectedRoute>
+                    <AdminProtectedRoute requiredPermission="MANAGE_USERS">
                       <AdminSettings />
                     </AdminProtectedRoute>
                   } 

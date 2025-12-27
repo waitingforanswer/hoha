@@ -536,7 +536,9 @@ const AdminSettings = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3 max-h-[300px] overflow-y-auto">
-            {permissions.map((permission) => (
+            {permissions
+              .filter((p) => ['MANAGE_MEMBERS', 'MANAGE_USERS', 'MANAGE_POSTS'].includes(p.code))
+              .map((permission) => (
               <div key={permission.id} className="flex items-center space-x-3">
                 <Checkbox
                   id={permission.id}
