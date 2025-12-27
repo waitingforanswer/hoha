@@ -98,23 +98,43 @@ serve(async (req) => {
         .select("id, code, name")
         .order("name");
 
-      // Fetch user roles (sub_admin roles from user_roles table)
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
+      // Fetch app user roles (app_users -> app_user_roles -> roles)
+      const { data: appUserRoles, error: appUserRolesError } = await supabase
+        .from("app_user_roles")
+        .select("app_user_id, role_id");
+
+      if (appUserRolesError) {
+        console.error("Fetch app user roles error:", appUserRolesError);
+        return json({ success: false, error: "Failed to fetch user roles" }, 500);
+      }
+
+      const { data: roles, error: rolesError } = await supabase
+        .from("roles")
+        .select("id, code");
+
+      if (rolesError) {
+        console.error("Fetch roles error:", rolesError);
+        return json({ success: false, error: "Failed to fetch roles" }, 500);
+      }
+
+      const roleIdToCode = new Map<string, string>();
+      roles?.forEach((r) => roleIdToCode.set(r.id, r.code));
 
       // Fetch user permissions
       const { data: userPermissions } = await supabase
         .from("user_permissions")
         .select("user_id, permission_id");
 
-      // Create a map of user roles
+      // Create a map of app user roles
       const userRolesMap: Record<string, string[]> = {};
-      userRoles?.forEach((ur) => {
-        if (!userRolesMap[ur.user_id]) {
-          userRolesMap[ur.user_id] = [];
+      appUserRoles?.forEach((ur) => {
+        const roleCode = roleIdToCode.get(ur.role_id);
+        if (!roleCode) return;
+
+        if (!userRolesMap[ur.app_user_id]) {
+          userRolesMap[ur.app_user_id] = [];
         }
-        userRolesMap[ur.user_id].push(ur.role);
+        userRolesMap[ur.app_user_id].push(roleCode);
       });
 
       // Create a map of user permissions
