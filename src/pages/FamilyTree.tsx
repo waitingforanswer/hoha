@@ -4,23 +4,37 @@ import { Input } from "@/components/ui/input";
 import { Search, User, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { FamilyTreeView } from "@/components/family-tree/FamilyTreeView";
+import { useAppAuth } from "@/hooks/useAppAuth";
+import { useAuth } from "@/hooks/useAuth";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const FamilyTree = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const { session: appSession } = useAppAuth();
+  const { session: supabaseSession } = useAuth();
 
   const { data: members = [], isLoading } = useQuery({
-    queryKey: ["family-members"],
+    queryKey: ["family-members", appSession?.token, supabaseSession?.access_token],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("family_members")
-        .select("*")
-        .order("generation", { ascending: true })
-        .order("birth_date", { ascending: true });
+      // Get authorization token - prefer app session, fallback to supabase session
+      const token = appSession?.token || supabaseSession?.access_token;
       
-      if (error) throw error;
-      return data;
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/get-family-members`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch family members");
+      }
+
+      return response.json();
     },
   });
 

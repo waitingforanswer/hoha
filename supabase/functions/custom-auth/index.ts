@@ -338,6 +338,27 @@ async function handleLogin(supabase: any, data: LoginRequest, rateLimitKey?: str
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const { password_hash, ...userWithoutPassword } = user;
 
+  // Save session token to database for edge function verification
+  const { error: sessionError } = await supabase
+    .from("app_user_sessions")
+    .insert({
+      app_user_id: user.id,
+      token: sessionToken,
+      expires_at: expiresAt.toISOString(),
+    });
+
+  if (sessionError) {
+    console.error("Session insert error:", sessionError);
+    // Continue anyway - user can still use the app, just edge functions may not work
+  }
+
+  // Cleanup expired sessions for this user
+  await supabase
+    .from("app_user_sessions")
+    .delete()
+    .eq("app_user_id", user.id)
+    .lt("expires_at", new Date().toISOString());
+
   console.log(`Successful login for user: ${user.username}`);
 
   return json({

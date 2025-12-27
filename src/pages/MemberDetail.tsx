@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { MainLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,8 +14,12 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import { useAppAuth } from "@/hooks/useAppAuth";
+import { useAuth } from "@/hooks/useAuth";
 
 type FamilyMember = Tables<"family_members">;
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const MemberDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +28,9 @@ const MemberDetail = () => {
   const [mother, setMother] = useState<FamilyMember | null>(null);
   const [children, setChildren] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const { session: appSession } = useAppAuth();
+  const { session: supabaseSession } = useAuth();
 
   useEffect(() => {
     const fetchMember = async () => {
@@ -32,49 +38,41 @@ const MemberDetail = () => {
 
       setLoading(true);
 
-      // Fetch member
-      const { data: memberData } = await supabase
-        .from("family_members")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      try {
+        // Get authorization token - prefer app session, fallback to supabase session
+        const token = appSession?.token || supabaseSession?.access_token;
 
-      if (memberData) {
-        setMember(memberData);
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/get-family-member`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ memberId: id }),
+        });
 
-        // Fetch parents and children in parallel
-        const [fatherRes, motherRes, childrenRes] = await Promise.all([
-          memberData.father_id
-            ? supabase
-                .from("family_members")
-                .select("*")
-                .eq("id", memberData.father_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-          memberData.mother_id
-            ? supabase
-                .from("family_members")
-                .select("*")
-                .eq("id", memberData.mother_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-          supabase
-            .from("family_members")
-            .select("*")
-            .or(`father_id.eq.${id},mother_id.eq.${id}`)
-            .order("birth_date", { ascending: true }),
-        ]);
+        if (!response.ok) {
+          console.error("Failed to fetch member");
+          setMember(null);
+          setLoading(false);
+          return;
+        }
 
-        setFather(fatherRes.data);
-        setMother(motherRes.data);
-        setChildren(childrenRes.data || []);
+        const data = await response.json();
+        setMember(data.member);
+        setFather(data.father);
+        setMother(data.mother);
+        setChildren(data.children || []);
+      } catch (error) {
+        console.error("Error fetching member:", error);
+        setMember(null);
       }
 
       setLoading(false);
     };
 
     fetchMember();
-  }, [id]);
+  }, [id, appSession?.token, supabaseSession?.access_token]);
 
   if (loading) {
     return (
