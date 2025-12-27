@@ -1,32 +1,53 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Menu, X, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAppAuth } from "@/hooks/useAppAuth";
-import { usePermissions, PERMISSIONS } from "@/hooks/usePermissions";
+import { usePermissions } from "@/hooks/usePermissions";
+import { supabase } from "@/integrations/supabase/client";
 
-interface NavItem {
+interface MenuItem {
+  id: string;
   label: string;
-  href: string;
-  permission?: string;
-  requireAuth?: boolean;
+  page_key: string;
+  display_order: number;
+  is_visible: boolean;
+  permission_code: string | null;
+  require_auth: boolean;
 }
 
-const navItems: NavItem[] = [
-  { label: "Trang chủ", href: "/" },
-  { label: "Giới thiệu", href: "/gioi-thieu" },
-  { label: "Họ Hà", href: "/ho-ha" },
-  { label: "Cây Gia Phả", href: "/cay-gia-pha", permission: PERMISSIONS.VIEW_FAMILY_TREE, requireAuth: true },
-  { label: "Bài Viết", href: "/bai-viet" },
-];
+const PAGE_KEY_TO_ROUTE: Record<string, string> = {
+  home: "/",
+  about: "/gioi-thieu",
+  "ho-ha": "/ho-ha",
+  "family-tree": "/cay-gia-pha",
+  articles: "/bai-viet",
+};
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAppAuth();
   const { hasPermission } = usePermissions();
+
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      const { data } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("is_visible", true)
+        .order("display_order", { ascending: true });
+      
+      if (data) {
+        setMenuItems(data);
+      }
+    };
+
+    fetchMenuItems();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -34,19 +55,23 @@ export function Header() {
     navigate('/');
   };
 
+  const getRoute = (pageKey: string): string => {
+    return PAGE_KEY_TO_ROUTE[pageKey] || `/${pageKey}`;
+  };
+
   const visibleNavItems = useMemo(() => {
-    return navItems.filter((item) => {
+    return menuItems.filter((item) => {
       // If item requires auth and user is not logged in, hide it
-      if (item.requireAuth && !user) {
+      if (item.require_auth && !user) {
         return false;
       }
       // If item requires a specific permission, check it
-      if (item.permission && !hasPermission(item.permission)) {
+      if (item.permission_code && !hasPermission(item.permission_code)) {
         return false;
       }
       return true;
     });
-  }, [user, hasPermission]);
+  }, [menuItems, user, hasPermission]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -66,20 +91,23 @@ export function Header() {
 
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-1 lg:flex">
-          {visibleNavItems.map((item) => (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                "px-4 py-2 text-sm font-medium transition-colors hover:text-primary",
-                location.pathname === item.href
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {visibleNavItems.map((item) => {
+            const route = getRoute(item.page_key);
+            return (
+              <Link
+                key={item.id}
+                to={route}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium transition-colors hover:text-primary",
+                  location.pathname === route
+                    ? "text-primary"
+                    : "text-muted-foreground"
+                )}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Auth Section */}
@@ -119,21 +147,24 @@ export function Header() {
       {isOpen && (
         <div className="border-t lg:hidden">
           <nav className="container flex flex-col py-4">
-            {visibleNavItems.map((item) => (
-              <Link
-                key={item.href}
-                to={item.href}
-                onClick={() => setIsOpen(false)}
-                className={cn(
-                  "py-3 text-sm font-medium transition-colors hover:text-primary",
-                  location.pathname === item.href
-                    ? "text-primary"
-                    : "text-muted-foreground"
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {visibleNavItems.map((item) => {
+              const route = getRoute(item.page_key);
+              return (
+                <Link
+                  key={item.id}
+                  to={route}
+                  onClick={() => setIsOpen(false)}
+                  className={cn(
+                    "py-3 text-sm font-medium transition-colors hover:text-primary",
+                    location.pathname === route
+                      ? "text-primary"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
             <div className="mt-4 border-t pt-4 space-y-2">
               {user ? (
                 <>

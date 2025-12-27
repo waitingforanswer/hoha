@@ -198,6 +198,75 @@ export type Database = {
           },
         ]
       }
+      footer_settings: {
+        Row: {
+          content: Json
+          created_at: string
+          display_order: number
+          id: string
+          is_visible: boolean
+          section_key: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          section_key: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          section_key?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      menu_items: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          is_visible: boolean
+          label: string
+          page_key: string
+          permission_code: string | null
+          require_auth: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          label: string
+          page_key: string
+          permission_code?: string | null
+          require_auth?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          label?: string
+          page_key?: string
+          permission_code?: string | null
+          require_auth?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       permissions: {
         Row: {
           code: string

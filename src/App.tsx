@@ -16,6 +16,9 @@ import AdminLogin from "./pages/admin/Login";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminMembers from "./pages/admin/Members";
 import AdminSettings from "./pages/admin/Settings";
+import MenuManagement from "./pages/admin/MenuManagement";
+import FooterManagement from "./pages/admin/FooterManagement";
+import PagesManagement from "./pages/admin/PagesManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +73,30 @@ const App = () => (
                 element={
                   <ProtectedRoute requireAdmin>
                     <AdminSettings />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/settings/menu" 
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <MenuManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/settings/footer" 
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <FooterManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/settings/pages" 
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <PagesManagement />
                   </ProtectedRoute>
                 } 
               />
