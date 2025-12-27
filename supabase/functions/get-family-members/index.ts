@@ -53,15 +53,21 @@ Deno.serve(async (req) => {
           .single();
         
         if (sessions && new Date(sessions.expires_at) > new Date()) {
-          // Check if app user has VIEW_FAMILY_TREE permission
-          const { data: hasPermission } = await supabaseAdmin.rpc("app_user_has_permission", {
-            _user_id: sessions.app_user_id,
-            _permission_code: "VIEW_FAMILY_TREE"
-          });
+          // Check if app user has VIEW_FAMILY_TREE or MANAGE_MEMBERS permission
+          const [viewPermResult, managePermResult] = await Promise.all([
+            supabaseAdmin.rpc("app_user_has_permission", {
+              _user_id: sessions.app_user_id,
+              _permission_code: "VIEW_FAMILY_TREE"
+            }),
+            supabaseAdmin.rpc("app_user_has_permission", {
+              _user_id: sessions.app_user_id,
+              _permission_code: "MANAGE_MEMBERS"
+            })
+          ]);
           
-          if (hasPermission) {
+          if (viewPermResult.data || managePermResult.data) {
             hasAccess = true;
-            console.log("Access granted via app user permission");
+            console.log("Access granted via app user permission (VIEW_FAMILY_TREE or MANAGE_MEMBERS)");
           }
         }
       }

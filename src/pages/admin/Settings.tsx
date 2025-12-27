@@ -67,11 +67,24 @@ const AdminSettings = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const { toast } = useToast();
 
+  // Helper to get auth token
+  const getAuthToken = async (): Promise<string | null> => {
+    // First try Supabase session
+    if (supabaseSession?.access_token) {
+      return supabaseSession.access_token;
+    }
+    // Fall back to app session
+    if (appSession?.token) {
+      return appSession.token;
+    }
+    return null;
+  };
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) {
+      const token = await getAuthToken();
+      if (!token) {
         toast({
           title: "Lỗi",
           description: "Phiên đăng nhập không hợp lệ",
@@ -83,7 +96,7 @@ const AdminSettings = () => {
       const response = await supabase.functions.invoke("admin-users", {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -116,15 +129,15 @@ const AdminSettings = () => {
   const handleStatusChange = async (user: AppUser, newStatus: "ACTIVE" | "INACTIVE") => {
     setActionLoading(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) {
+      const token = await getAuthToken();
+      if (!token) {
         throw new Error("No session");
       }
 
       const response = await supabase.functions.invoke("admin-users/update-status", {
         body: { user_id: user.id, status: newStatus },
         headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -169,15 +182,15 @@ const AdminSettings = () => {
 
     setActionLoading(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) {
+      const token = await getAuthToken();
+      if (!token) {
         throw new Error("No session");
       }
 
       const response = await supabase.functions.invoke("admin-users/change-password", {
         body: { user_id: selectedUser.id, new_password: newPassword },
         headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -213,15 +226,15 @@ const AdminSettings = () => {
     const isSubAdmin = user.roles.includes("sub_admin");
     
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) {
+      const token = await getAuthToken();
+      if (!token) {
         throw new Error("No session");
       }
 
       const response = await supabase.functions.invoke("admin-users/assign-sub-admin", {
         body: { user_id: user.id, assign: !isSubAdmin },
         headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -263,15 +276,15 @@ const AdminSettings = () => {
 
     setActionLoading(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) {
+      const token = await getAuthToken();
+      if (!token) {
         throw new Error("No session");
       }
 
       const response = await supabase.functions.invoke("admin-users/update-permissions", {
         body: { user_id: selectedUser.id, permission_ids: selectedPermissions },
         headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 

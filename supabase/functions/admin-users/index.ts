@@ -52,6 +52,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify admin from Authorization header
@@ -61,21 +62,59 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     
-    if (authError || !authUser) {
-      console.error("Auth error:", authError);
-      return json({ success: false, error: "Unauthorized" }, 401);
+    let isAdmin = false;
+    let canAccess = false;
+    let authUserId: string | null = null;
+
+    // First, try to verify as Supabase Auth user
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const { data: { user: supabaseUser } } = await supabaseAuth.auth.getUser();
+    
+    if (supabaseUser) {
+      authUserId = supabaseUser.id;
+      // Check if user can access admin
+      const { data: canAccessData } = await supabase.rpc("can_access_admin", { _user_id: supabaseUser.id });
+      canAccess = canAccessData === true;
+      
+      // Check if user is full admin
+      const { data: isAdminData } = await supabase.rpc("is_admin", { _user_id: supabaseUser.id });
+      isAdmin = isAdminData === true;
+      
+      console.log(`Supabase Auth user: ${supabaseUser.id}, canAccess: ${canAccess}, isAdmin: ${isAdmin}`);
+    } else {
+      // Try to verify as app user via session token
+      const { data: session, error: sessionError } = await supabase
+        .from("app_user_sessions")
+        .select("app_user_id, expires_at")
+        .eq("token", token)
+        .maybeSingle();
+      
+      if (session && new Date(session.expires_at) > new Date()) {
+        authUserId = session.app_user_id;
+        
+        // Check app user roles - get role codes from app_user_roles -> roles
+        const { data: userRoles } = await supabase
+          .from("app_user_roles")
+          .select("role_id, roles:role_id(code)")
+          .eq("app_user_id", session.app_user_id);
+        
+        const roleCodes = userRoles?.map((ur: any) => ur.roles?.code?.toLowerCase()).filter(Boolean) || [];
+        isAdmin = roleCodes.includes("admin");
+        const isSubAdmin = roleCodes.includes("sub_admin");
+        canAccess = isAdmin || isSubAdmin;
+        
+        console.log(`App user: ${session.app_user_id}, roles: ${roleCodes.join(",")}, canAccess: ${canAccess}, isAdmin: ${isAdmin}`);
+      }
     }
 
-    // Check if user can access admin (admin or sub_admin)
-    const { data: canAccess } = await supabase.rpc("can_access_admin", { _user_id: authUser.id });
-    if (!canAccess) {
+    if (!canAccess || !authUserId) {
+      console.error("Access denied - no valid admin auth");
       return json({ success: false, error: "Forbidden - Admin access required" }, 403);
     }
-
-    // Check if user is full admin (for role management)
-    const { data: isAdmin } = await supabase.rpc("is_admin", { _user_id: authUser.id });
 
     const url = new URL(req.url);
     const action = url.pathname.split("/").pop();
@@ -221,7 +260,7 @@ serve(async (req) => {
         }
       }
 
-      console.log(`User ${user_id} status updated to ${status} by admin ${authUser.id}`);
+      console.log(`User ${user_id} status updated to ${status} by admin ${authUserId}`);
       return json({ success: true, message: "Status updated successfully" });
     }
 
@@ -248,7 +287,7 @@ serve(async (req) => {
         return json({ success: false, error: "Failed to change password" }, 500);
       }
 
-      console.log(`User ${user_id} password changed by admin ${authUser.id}`);
+      console.log(`User ${user_id} password changed by admin ${authUserId}`);
       return json({ success: true, message: "Password changed successfully" });
     }
 
@@ -286,7 +325,7 @@ serve(async (req) => {
           console.error("Assign sub_admin error:", error);
           return json({ success: false, error: "Failed to assign sub_admin role" }, 500);
         }
-        console.log(`User ${user_id} assigned sub_admin role by admin ${authUser.id}`);
+        console.log(`User ${user_id} assigned sub_admin role by admin ${authUserId}`);
       } else {
         // Remove sub_admin role from app_user_roles table
         const { error } = await supabase
@@ -299,7 +338,7 @@ serve(async (req) => {
           console.error("Remove sub_admin error:", error);
           return json({ success: false, error: "Failed to remove sub_admin role" }, 500);
         }
-        console.log(`User ${user_id} removed sub_admin role by admin ${authUser.id}`);
+        console.log(`User ${user_id} removed sub_admin role by admin ${authUserId}`);
       }
 
       return json({ success: true, message: assign ? "Sub-admin role assigned" : "Sub-admin role removed" });
@@ -340,7 +379,7 @@ serve(async (req) => {
         }
       }
 
-      console.log(`User ${user_id} permissions updated by admin ${authUser.id}`);
+      console.log(`User ${user_id} permissions updated by admin ${authUserId}`);
       return json({ success: true, message: "Permissions updated successfully" });
     }
 
