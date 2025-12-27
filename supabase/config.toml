@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.get-family-member]
 verify_jwt = false
+
+[functions.get-user-permissions]
+verify_jwt = false
