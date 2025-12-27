@@ -77,18 +77,23 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     navigate("/admin/login");
   };
 
+  // Menu items visible to all admins (admin + sub-admin)
   const mainMenuItems: MenuItem[] = [
     { icon: Home, label: "Dashboard", path: "/admin" },
     { icon: Users, label: "Thành viên", path: "/admin/members" },
     { icon: FileText, label: "Bài viết", path: "/admin/posts" },
   ];
 
-  const settingsSubMenu: MenuItem[] = [
-    { icon: Navigation, label: "Menu điều hướng", path: "/admin/settings/menu" },
-    { icon: Footprints, label: "Footer", path: "/admin/settings/footer" },
-    { icon: File, label: "Trang", path: "/admin/settings/pages" },
+  // Settings submenu - filtered based on role
+  const allSettingsSubMenu: (MenuItem & { adminOnly?: boolean })[] = [
+    { icon: Navigation, label: "Menu điều hướng", path: "/admin/settings/menu", adminOnly: true },
+    { icon: Footprints, label: "Footer", path: "/admin/settings/footer", adminOnly: true },
+    { icon: File, label: "Trang", path: "/admin/settings/pages", adminOnly: true },
     { icon: UserCog, label: "Người dùng", path: "/admin/settings" },
   ];
+
+  // Filter settings submenu based on admin status
+  const settingsSubMenu = allSettingsSubMenu.filter(item => !item.adminOnly || isAdmin);
 
   const isSettingsActive = location.pathname.startsWith("/admin/settings");
 
