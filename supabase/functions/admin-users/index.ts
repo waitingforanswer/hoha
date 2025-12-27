@@ -244,11 +244,23 @@ serve(async (req) => {
         return json({ success: false, error: "Missing user_id or assign" }, 400);
       }
 
+      // Get sub_admin role id from roles table
+      const { data: subAdminRole, error: roleError } = await supabase
+        .from("roles")
+        .select("id")
+        .eq("code", "sub_admin")
+        .maybeSingle();
+
+      if (roleError || !subAdminRole) {
+        console.error("Get sub_admin role error:", roleError);
+        return json({ success: false, error: "sub_admin role not found" }, 500);
+      }
+
       if (assign) {
-        // Assign sub_admin role
+        // Assign sub_admin role using app_user_roles table
         const { error } = await supabase
-          .from("user_roles")
-          .upsert({ user_id, role: "sub_admin" }, { onConflict: "user_id,role" });
+          .from("app_user_roles")
+          .upsert({ app_user_id: user_id, role_id: subAdminRole.id }, { onConflict: "app_user_id,role_id" });
 
         if (error) {
           console.error("Assign sub_admin error:", error);
@@ -256,12 +268,12 @@ serve(async (req) => {
         }
         console.log(`User ${user_id} assigned sub_admin role by admin ${authUser.id}`);
       } else {
-        // Remove sub_admin role
+        // Remove sub_admin role from app_user_roles table
         const { error } = await supabase
-          .from("user_roles")
+          .from("app_user_roles")
           .delete()
-          .eq("user_id", user_id)
-          .eq("role", "sub_admin");
+          .eq("app_user_id", user_id)
+          .eq("role_id", subAdminRole.id);
 
         if (error) {
           console.error("Remove sub_admin error:", error);
