@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,35 @@ import {
   LogOut, 
   Home,
   Menu,
-  X
+  X,
+  ChevronDown,
+  ChevronRight,
+  Navigation,
+  Footprints,
+  File,
+  UserCog
 } from "lucide-react";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface AdminLayoutProps {
   children: ReactNode;
+}
+
+interface MenuItem {
+  icon: any;
+  label: string;
+  path: string;
+}
+
+interface MenuGroup {
+  icon: any;
+  label: string;
+  items: MenuItem[];
 }
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
@@ -23,12 +45,20 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate("/admin/login");
     }
   }, [user, loading, navigate]);
+
+  // Auto-expand settings when on a settings page
+  useEffect(() => {
+    if (location.pathname.startsWith("/admin/settings")) {
+      setSettingsOpen(true);
+    }
+  }, [location.pathname]);
 
   if (loading) {
     return (
@@ -47,12 +77,20 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     navigate("/admin/login");
   };
 
-  const menuItems = [
+  const mainMenuItems: MenuItem[] = [
     { icon: Home, label: "Dashboard", path: "/admin" },
     { icon: Users, label: "Thành viên", path: "/admin/members" },
     { icon: FileText, label: "Bài viết", path: "/admin/posts" },
-    { icon: Settings, label: "Cài đặt", path: "/admin/settings" },
   ];
+
+  const settingsSubMenu: MenuItem[] = [
+    { icon: Navigation, label: "Menu điều hướng", path: "/admin/settings/menu" },
+    { icon: Footprints, label: "Footer", path: "/admin/settings/footer" },
+    { icon: File, label: "Trang", path: "/admin/settings/pages" },
+    { icon: UserCog, label: "Người dùng", path: "/admin/settings" },
+  ];
+
+  const isSettingsActive = location.pathname.startsWith("/admin/settings");
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -84,7 +122,8 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-4">
-            {menuItems.map((item) => {
+            {/* Main menu items */}
+            {mainMenuItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
                 <Link
@@ -103,6 +142,51 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 </Link>
               );
             })}
+
+            {/* Settings with submenu */}
+            <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                    isSettingsActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Settings className="h-5 w-5" />
+                    Cài đặt
+                  </div>
+                  {settingsOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1 space-y-1 pl-4">
+                {settingsSubMenu.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setSidebarOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
           </nav>
 
           {/* User info & logout */}
