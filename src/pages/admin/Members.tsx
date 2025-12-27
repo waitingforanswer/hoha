@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AdminLayout from "@/components/admin/AdminLayout";
 import MemberForm from "@/components/admin/MemberForm";
@@ -24,10 +24,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Pencil, Trash2, QrCode, User } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, QrCode, User, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import { format } from "date-fns";
 
 type FamilyMember = Tables<"family_members">;
+
+type SortField = "full_name" | "generation" | "gender" | "birth_date" | "is_alive" | "updated_at";
+type SortDirection = "asc" | "desc";
 
 const AdminMembers = () => {
   const [members, setMembers] = useState<FamilyMember[]>([]);
@@ -38,15 +42,15 @@ const AdminMembers = () => {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null);
+  const [sortField, setSortField] = useState<SortField>("updated_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const { toast } = useToast();
 
   const fetchMembers = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("family_members")
-      .select("*")
-      .order("generation", { ascending: true })
-      .order("full_name", { ascending: true });
+      .select("*");
 
     if (error) {
       toast({
@@ -63,6 +67,70 @@ const AdminMembers = () => {
   useEffect(() => {
     fetchMembers();
   }, []);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection(field === "updated_at" ? "desc" : "asc");
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+    }
+    return sortDirection === "asc" ? (
+      <ArrowUp className="ml-1 h-3 w-3" />
+    ) : (
+      <ArrowDown className="ml-1 h-3 w-3" />
+    );
+  };
+
+  const sortedAndFilteredMembers = useMemo(() => {
+    let filtered = members.filter((m) =>
+      m.full_name.toLowerCase().includes(search.toLowerCase())
+    );
+
+    return filtered.sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      switch (sortField) {
+        case "full_name":
+          aVal = a.full_name.toLowerCase();
+          bVal = b.full_name.toLowerCase();
+          break;
+        case "generation":
+          aVal = a.generation;
+          bVal = b.generation;
+          break;
+        case "gender":
+          aVal = a.gender || "";
+          bVal = b.gender || "";
+          break;
+        case "birth_date":
+          aVal = a.birth_date ? new Date(a.birth_date).getTime() : 0;
+          bVal = b.birth_date ? new Date(b.birth_date).getTime() : 0;
+          break;
+        case "is_alive":
+          aVal = a.is_alive ? 1 : 0;
+          bVal = b.is_alive ? 1 : 0;
+          break;
+        case "updated_at":
+          aVal = new Date(a.updated_at).getTime();
+          bVal = new Date(b.updated_at).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [members, search, sortField, sortDirection]);
 
   const handleEdit = (member: FamilyMember) => {
     setSelectedMember(member);
@@ -107,9 +175,13 @@ const AdminMembers = () => {
     setMemberToDelete(null);
   };
 
-  const filteredMembers = members.filter((m) =>
-    m.full_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const formatUpdatedAt = (dateStr: string) => {
+    try {
+      return format(new Date(dateStr), "HH:mm dd/MM/yyyy");
+    } catch {
+      return "-";
+    }
+  };
 
   return (
     <AdminLayout>
@@ -139,12 +211,12 @@ const AdminMembers = () => {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg border bg-card shadow-elegant">
+        <div className="rounded-lg border bg-card shadow-elegant overflow-x-auto">
           {loading ? (
             <div className="flex h-48 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : filteredMembers.length === 0 ? (
+          ) : sortedAndFilteredMembers.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
               <User className="mb-2 h-12 w-12" />
               <p>Chưa có thành viên nào</p>
@@ -154,16 +226,65 @@ const AdminMembers = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Ảnh</TableHead>
-                  <TableHead>Họ tên</TableHead>
-                  <TableHead>Đời</TableHead>
-                  <TableHead>Giới tính</TableHead>
-                  <TableHead>Năm sinh</TableHead>
-                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("full_name")}
+                      className="flex items-center font-medium hover:text-foreground"
+                    >
+                      Họ tên
+                      {getSortIcon("full_name")}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("generation")}
+                      className="flex items-center font-medium hover:text-foreground"
+                    >
+                      Đời
+                      {getSortIcon("generation")}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("gender")}
+                      className="flex items-center font-medium hover:text-foreground"
+                    >
+                      Giới tính
+                      {getSortIcon("gender")}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("birth_date")}
+                      className="flex items-center font-medium hover:text-foreground"
+                    >
+                      Năm sinh
+                      {getSortIcon("birth_date")}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("is_alive")}
+                      className="flex items-center font-medium hover:text-foreground"
+                    >
+                      Trạng thái
+                      {getSortIcon("is_alive")}
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("updated_at")}
+                      className="flex items-center font-medium hover:text-foreground"
+                    >
+                      Cập nhật
+                      {getSortIcon("updated_at")}
+                    </button>
+                  </TableHead>
                   <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredMembers.map((member) => (
+                {sortedAndFilteredMembers.map((member) => (
                   <TableRow key={member.id}>
                     <TableCell>
                       <div className="h-10 w-10 overflow-hidden rounded-full bg-muted">
@@ -206,6 +327,9 @@ const AdminMembers = () => {
                       >
                         {member.is_alive ? "Còn sống" : "Đã mất"}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {formatUpdatedAt(member.updated_at)}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
