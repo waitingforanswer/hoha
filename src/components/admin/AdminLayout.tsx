@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Button } from "@/components/ui/button";
 import { 
   Users, 
@@ -41,17 +41,17 @@ interface MenuGroup {
 }
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { isAuthenticated, canAccessAdmin, isAdmin, loading, signOut, displayName, userType } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !isAuthenticated) {
       navigate("/admin/login");
     }
-  }, [user, loading, navigate]);
+  }, [isAuthenticated, loading, navigate]);
 
   // Auto-expand settings when on a settings page
   useEffect(() => {
@@ -68,7 +68,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     );
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -192,9 +192,10 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           {/* User info & logout */}
           <div className="border-t p-4">
             <div className="mb-3 text-sm">
-              <p className="font-medium">{user.email}</p>
+              <p className="font-medium truncate">{displayName}</p>
               <p className="text-xs text-muted-foreground">
-                {isAdmin ? "Quản trị viên" : "Người dùng"}
+                {isAdmin ? "Quản trị viên" : canAccessAdmin ? "Sub-Admin" : "Người dùng"}
+                {userType === "app" && " (App)"}
               </p>
             </div>
             <Button
