@@ -481,6 +481,13 @@ export type Database = {
             referencedRelation: "permissions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       user_roles: {
