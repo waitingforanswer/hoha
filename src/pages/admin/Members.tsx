@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import MemberForm from "@/components/admin/MemberForm";
 import MemberQRCode from "@/components/admin/MemberQRCode";
@@ -34,6 +35,7 @@ type SortField = "full_name" | "generation" | "gender" | "birth_date" | "is_aliv
 type SortDirection = "asc" | "desc";
 
 const AdminMembers = () => {
+  const { supabaseSession, appSession, isAdmin } = useAdminAuth();
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -48,25 +50,52 @@ const AdminMembers = () => {
 
   const fetchMembers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("family_members")
-      .select("*");
+    try {
+      // Get the appropriate token
+      const token = supabaseSession?.access_token || appSession?.token;
+      
+      if (!token) {
+        toast({
+          title: "Lỗi",
+          description: "Phiên đăng nhập không hợp lệ",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
 
-    if (error) {
+      // Use Edge Function to fetch members (bypasses RLS for app_users)
+      const response = await supabase.functions.invoke("get-family-members", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      // Check if response is an error object
+      if (response.data?.error) {
+        throw new Error(response.data.message || response.data.error);
+      }
+
+      setMembers(Array.isArray(response.data) ? response.data : []);
+    } catch (error: any) {
+      console.error("Fetch members error:", error);
       toast({
         title: "Lỗi",
-        description: "Không thể tải danh sách thành viên",
+        description: error.message || "Không thể tải danh sách thành viên",
         variant: "destructive",
       });
-    } else {
-      setMembers(data || []);
+      setMembers([]);
     }
     setLoading(false);
   };
 
   useEffect(() => {
     fetchMembers();
-  }, []);
+  }, [supabaseSession, appSession]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
