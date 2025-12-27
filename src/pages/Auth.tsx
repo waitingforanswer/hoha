@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, User, Lock, Phone, UserPlus, LogIn, CheckCircle2 } from 'lucide-react';
+import { Loader2, User, Lock, Phone, UserPlus, LogIn, CheckCircle2, Home } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -101,7 +102,14 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-xl border-border/50">
+      <div className="w-full max-w-md">
+        <Button variant="ghost" asChild className="mb-4">
+          <Link to="/" className="flex items-center gap-2">
+            <Home className="h-4 w-4" />
+            Về trang chủ
+          </Link>
+        </Button>
+        <Card className="shadow-xl border-border/50">
         <CardHeader className="space-y-1 text-center pb-4">
           <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-2">
             <User className="w-8 h-8 text-primary" />
@@ -292,6 +300,7 @@ export default function Auth() {
           </Tabs>
         </CardContent>
       </Card>
+      </div>
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
