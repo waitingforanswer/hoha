@@ -36,6 +36,10 @@ interface AdminAuthContextType {
   displayName: string;
   userType: "supabase" | "app" | null;
   
+  // Permissions for sub-admin
+  permissions: string[];
+  hasPermission: (permissionCode: string) => boolean;
+  
   // Actions
   signOut: () => Promise<void>;
   loginWithAppUser: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -43,6 +47,7 @@ interface AdminAuthContextType {
 
 const ADMIN_APP_USER_KEY = "admin_app_user";
 const ADMIN_APP_SESSION_KEY = "admin_app_session";
+const ADMIN_APP_PERMISSIONS_KEY = "admin_app_permissions";
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
 
@@ -58,6 +63,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const [appSession, setAppSession] = useState<AppSession | null>(null);
   const [isAppAdmin, setIsAppAdmin] = useState(false);
   const [isAppSubAdmin, setIsAppSubAdmin] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
   
   const [loading, setLoading] = useState(true);
 
@@ -92,6 +98,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
     // Check existing app user session from localStorage
     const storedUser = localStorage.getItem(ADMIN_APP_USER_KEY);
     const storedSession = localStorage.getItem(ADMIN_APP_SESSION_KEY);
+    const storedPermissions = localStorage.getItem(ADMIN_APP_PERMISSIONS_KEY);
     
     if (storedUser && storedSession) {
       try {
@@ -102,16 +109,21 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
         if (new Date(session.expires_at) > new Date()) {
           setAppUser(user);
           setAppSession(session);
+          if (storedPermissions) {
+            setPermissions(JSON.parse(storedPermissions));
+          }
           checkAppUserAdminRoles(user.id);
         } else {
           // Clear expired session
           localStorage.removeItem(ADMIN_APP_USER_KEY);
           localStorage.removeItem(ADMIN_APP_SESSION_KEY);
+          localStorage.removeItem(ADMIN_APP_PERMISSIONS_KEY);
         }
       } catch (e) {
         console.error("Failed to parse stored admin app user session:", e);
         localStorage.removeItem(ADMIN_APP_USER_KEY);
         localStorage.removeItem(ADMIN_APP_SESSION_KEY);
+        localStorage.removeItem(ADMIN_APP_PERMISSIONS_KEY);
       }
     }
 
@@ -128,6 +140,34 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
     setIsSupabaseAdmin(!adminResult.error && adminResult.data === true);
     setIsSupabaseSubAdmin(!subAdminResult.error && subAdminResult.data === true);
+  };
+
+  const fetchAppUserPermissions = async (userId: string): Promise<string[]> => {
+    try {
+      const { data: userPermissions, error } = await supabase
+        .from("user_permissions")
+        .select(`
+          permission_id,
+          permissions:permission_id (
+            code
+          )
+        `)
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error("Error fetching user permissions:", error);
+        return [];
+      }
+
+      const permissionCodes = userPermissions
+        ?.map((up: any) => up.permissions?.code)
+        .filter(Boolean) || [];
+      
+      return permissionCodes;
+    } catch (error) {
+      console.error("Error fetching app user permissions:", error);
+      return [];
+    }
   };
 
   const checkAppUserAdminRoles = async (userId: string) => {
@@ -151,8 +191,21 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (userRoles && userRoles.length > 0) {
         const roleCodes = userRoles.map((ur: any) => ur.roles?.code?.toLowerCase()).filter(Boolean);
-        setIsAppAdmin(roleCodes.includes("admin"));
-        setIsAppSubAdmin(roleCodes.includes("sub_admin") || roleCodes.includes("sub-admin"));
+        const isAdmin = roleCodes.includes("admin");
+        const isSubAdmin = roleCodes.includes("sub_admin") || roleCodes.includes("sub-admin");
+        
+        setIsAppAdmin(isAdmin);
+        setIsAppSubAdmin(isSubAdmin);
+
+        // Fetch permissions for sub-admin users
+        if (isSubAdmin && !isAdmin) {
+          const perms = await fetchAppUserPermissions(userId);
+          setPermissions(perms);
+          localStorage.setItem(ADMIN_APP_PERMISSIONS_KEY, JSON.stringify(perms));
+        } else if (isAdmin) {
+          // Admin has all permissions
+          setPermissions(['MANAGE_MEMBERS', 'MANAGE_USERS', 'MANAGE_POSTS']);
+        }
       }
     } catch (error) {
       console.error("Error checking app user admin roles:", error);
@@ -190,20 +243,32 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("app_user_id", userId);
 
       const roleCodes = userRoles?.map((ur: any) => ur.roles?.code?.toLowerCase()).filter(Boolean) || [];
-      const hasAdminAccess = roleCodes.includes("admin") || roleCodes.includes("sub_admin") || roleCodes.includes("sub-admin");
+      const isAdmin = roleCodes.includes("admin");
+      const isSubAdmin = roleCodes.includes("sub_admin") || roleCodes.includes("sub-admin");
+      const hasAdminAccess = isAdmin || isSubAdmin;
 
       if (!hasAdminAccess) {
         return { success: false, error: "Bạn không có quyền truy cập trang quản trị" };
       }
 
+      // Fetch permissions for sub-admin
+      let userPermissions: string[] = [];
+      if (isSubAdmin && !isAdmin) {
+        userPermissions = await fetchAppUserPermissions(userId);
+      } else if (isAdmin) {
+        userPermissions = ['MANAGE_MEMBERS', 'MANAGE_USERS', 'MANAGE_POSTS'];
+      }
+
       // Save to state and localStorage
       setAppUser(data.user);
       setAppSession(data.session);
-      setIsAppAdmin(roleCodes.includes("admin"));
-      setIsAppSubAdmin(roleCodes.includes("sub_admin") || roleCodes.includes("sub-admin"));
+      setIsAppAdmin(isAdmin);
+      setIsAppSubAdmin(isSubAdmin);
+      setPermissions(userPermissions);
       
       localStorage.setItem(ADMIN_APP_USER_KEY, JSON.stringify(data.user));
       localStorage.setItem(ADMIN_APP_SESSION_KEY, JSON.stringify(data.session));
+      localStorage.setItem(ADMIN_APP_PERMISSIONS_KEY, JSON.stringify(userPermissions));
 
       return { success: true };
     } catch (error: any) {
@@ -225,8 +290,10 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
     setAppSession(null);
     setIsAppAdmin(false);
     setIsAppSubAdmin(false);
+    setPermissions([]);
     localStorage.removeItem(ADMIN_APP_USER_KEY);
     localStorage.removeItem(ADMIN_APP_SESSION_KEY);
+    localStorage.removeItem(ADMIN_APP_PERMISSIONS_KEY);
   };
 
   // Combined states
@@ -237,6 +304,11 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   
   const userType = supabaseUser ? "supabase" : appUser ? "app" : null;
   const displayName = supabaseUser?.email || appUser?.full_name || "";
+
+  const hasPermission = (permissionCode: string): boolean => {
+    if (isAdmin) return true;
+    return permissions.includes(permissionCode);
+  };
 
   return (
     <AdminAuthContext.Provider
@@ -252,6 +324,8 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
         loading,
         displayName,
         userType,
+        permissions,
+        hasPermission,
         signOut,
         loginWithAppUser,
       }}

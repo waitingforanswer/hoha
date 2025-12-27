@@ -41,7 +41,7 @@ interface MenuGroup {
 }
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
-  const { isAuthenticated, canAccessAdmin, isAdmin, loading, signOut, displayName, userType } = useAdminAuth();
+  const { isAuthenticated, canAccessAdmin, isAdmin, loading, signOut, displayName, userType, hasPermission } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -77,25 +77,40 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     navigate("/admin/login");
   };
 
-  // Menu items visible to all admins (admin + sub-admin)
+  // Build main menu items based on permissions
   const mainMenuItems: MenuItem[] = [
     { icon: Home, label: "Dashboard", path: "/admin" },
-    { icon: Users, label: "Thành viên", path: "/admin/members" },
-    { icon: FileText, label: "Bài viết", path: "/admin/posts" },
   ];
 
-  // Settings submenu - filtered based on role
-  const allSettingsSubMenu: (MenuItem & { adminOnly?: boolean })[] = [
-    { icon: Navigation, label: "Menu điều hướng", path: "/admin/settings/menu", adminOnly: true },
-    { icon: Footprints, label: "Footer", path: "/admin/settings/footer", adminOnly: true },
-    { icon: File, label: "Trang", path: "/admin/settings/pages", adminOnly: true },
-    { icon: UserCog, label: "Người dùng", path: "/admin/settings" },
-  ];
+  // Add Thành viên menu only if admin or has MANAGE_MEMBERS permission
+  if (isAdmin || hasPermission('MANAGE_MEMBERS')) {
+    mainMenuItems.push({ icon: Users, label: "Thành viên", path: "/admin/members" });
+  }
 
-  // Filter settings submenu based on admin status
-  const settingsSubMenu = allSettingsSubMenu.filter(item => !item.adminOnly || isAdmin);
+  // Add Bài viết menu only if admin or has MANAGE_POSTS permission
+  if (isAdmin || hasPermission('MANAGE_POSTS')) {
+    mainMenuItems.push({ icon: FileText, label: "Bài viết", path: "/admin/posts" });
+  }
+
+  // Settings submenu - filtered based on role and permissions
+  const settingsSubMenu: MenuItem[] = [];
+  
+  // Admin-only items
+  if (isAdmin) {
+    settingsSubMenu.push(
+      { icon: Navigation, label: "Menu điều hướng", path: "/admin/settings/menu" },
+      { icon: Footprints, label: "Footer", path: "/admin/settings/footer" },
+      { icon: File, label: "Trang", path: "/admin/settings/pages" }
+    );
+  }
+  
+  // Người dùng - visible to admin or users with MANAGE_USERS permission
+  if (isAdmin || hasPermission('MANAGE_USERS')) {
+    settingsSubMenu.push({ icon: UserCog, label: "Người dùng", path: "/admin/settings" });
+  }
 
   const isSettingsActive = location.pathname.startsWith("/admin/settings");
+  const showSettingsMenu = settingsSubMenu.length > 0;
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -148,50 +163,52 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               );
             })}
 
-            {/* Settings with submenu */}
-            <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
-                    isSettingsActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Settings className="h-5 w-5" />
-                    Cài đặt
-                  </div>
-                  {settingsOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-1 space-y-1 pl-4">
-                {settingsSubMenu.map((item) => {
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setSidebarOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </CollapsibleContent>
-            </Collapsible>
+            {/* Settings with submenu - only show if there are items */}
+            {showSettingsMenu && (
+              <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
+                      isSettingsActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Settings className="h-5 w-5" />
+                      Cài đặt
+                    </div>
+                    {settingsOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-1 space-y-1 pl-4">
+                  {settingsSubMenu.map((item) => {
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setSidebarOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
           </nav>
 
           {/* User info & logout */}
