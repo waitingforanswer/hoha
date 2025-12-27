@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,9 +54,9 @@ interface AppUser {
 }
 
 const AdminSettings = () => {
+  const { isAdmin: isFullAdmin, supabaseSession, appSession } = useAdminAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [isFullAdmin, setIsFullAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
@@ -93,7 +94,6 @@ const AdminSettings = () => {
       if (response.data?.success) {
         setUsers(response.data.users || []);
         setPermissions(response.data.permissions || []);
-        setIsFullAdmin(response.data.isAdmin || false);
       } else {
         throw new Error(response.data?.error || "Failed to fetch users");
       }

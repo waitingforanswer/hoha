@@ -81,7 +81,7 @@ const App = () => (
                 <Route 
                   path="/admin/settings/menu" 
                   element={
-                    <AdminProtectedRoute>
+                    <AdminProtectedRoute requireAdmin>
                       <MenuManagement />
                     </AdminProtectedRoute>
                   } 
@@ -89,7 +89,7 @@ const App = () => (
                 <Route 
                   path="/admin/settings/footer" 
                   element={
-                    <AdminProtectedRoute>
+                    <AdminProtectedRoute requireAdmin>
                       <FooterManagement />
                     </AdminProtectedRoute>
                   } 
@@ -97,7 +97,7 @@ const App = () => (
                 <Route 
                   path="/admin/settings/pages" 
                   element={
-                    <AdminProtectedRoute>
+                    <AdminProtectedRoute requireAdmin>
                       <PagesManagement />
                     </AdminProtectedRoute>
                   } 
