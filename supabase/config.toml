@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.admin-users]
 verify_jwt = false
+
+[functions.get-family-members]
+verify_jwt = false
+
+[functions.get-family-member]
+verify_jwt = false
