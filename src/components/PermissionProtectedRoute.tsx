@@ -12,7 +12,7 @@ interface PermissionProtectedRouteProps {
 export function PermissionProtectedRoute({ 
   children, 
   requiredPermission,
-  redirectTo = "/auth"
+  redirectTo = "/login"
 }: PermissionProtectedRouteProps) {
   const { user, loading } = useAppAuth();
   const { hasPermission } = usePermissions();

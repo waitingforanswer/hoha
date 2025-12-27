@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppAuth } from '@/hooks/useAppAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,11 @@ import {
 
 export default function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, register, user } = useAppAuth();
+  
+  // Get the page user was trying to access before being redirected
+  const from = (location.state as { from?: Location })?.from?.pathname || '/';
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   
   // Login state
@@ -38,9 +42,9 @@ export default function Auth() {
   // Success dialog
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in - go to the page they were trying to access
   if (user) {
-    navigate('/');
+    navigate(from, { replace: true });
     return null;
   }
 
@@ -54,7 +58,8 @@ export default function Auth() {
     setLoginLoading(false);
     
     if (result.success) {
-      navigate('/');
+      // Redirect to the page user was trying to access before login
+      navigate(from, { replace: true });
     } else {
       setLoginError({ message: result.error || 'Đăng nhập thất bại', field: result.field });
     }

@@ -31,7 +31,8 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Auth />} />
-              <Route 
+              <Route path="/auth" element={<Auth />} />
+              <Route
                 path="/cay-gia-pha" 
                 element={
                   <PermissionProtectedRoute requiredPermission={PERMISSIONS.VIEW_FAMILY_TREE}>
