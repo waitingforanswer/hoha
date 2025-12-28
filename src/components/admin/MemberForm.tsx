@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,6 +63,7 @@ const MemberForm = ({
   allMembers,
   onSuccess,
 }: MemberFormProps) => {
+  const { supabaseSession, appSession } = useAdminAuth();
   const [loading, setLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -69,6 +71,11 @@ const MemberForm = ({
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [hasExistingAvatar, setHasExistingAvatar] = useState(false);
   const { toast } = useToast();
+
+  // Get auth token for Edge Function calls
+  const getAuthToken = (): string | null => {
+    return supabaseSession?.access_token || appSession?.token || null;
+  };
 
   const {
     register,
@@ -224,6 +231,11 @@ const MemberForm = ({
     setLoading(true);
 
     try {
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error("Phiên đăng nhập không hợp lệ");
+      }
+
       const memberData = {
         full_name: data.full_name,
         gender: data.gender || null,
@@ -244,32 +256,49 @@ const MemberForm = ({
       };
 
       if (member) {
+        // Update existing member via Edge Function
         const avatarUrl = await uploadAvatar(member.id);
         
-        const { error } = await supabase
-          .from("family_members")
-          .update({ ...memberData, avatar_url: avatarUrl })
-          .eq("id", member.id);
+        const response = await supabase.functions.invoke("manage-family-member", {
+          headers: { Authorization: `Bearer ${token}` },
+          body: {
+            action: "update",
+            memberId: member.id,
+            memberData: { ...memberData, avatar_url: avatarUrl },
+          },
+        });
 
-        if (error) throw error;
+        if (response.error) throw new Error(response.error.message);
+        if (response.data?.error) throw new Error(response.data.error);
 
         toast({ title: "Đã cập nhật thành viên!" });
       } else {
-        const { data: newMember, error } = await supabase
-          .from("family_members")
-          .insert(memberData)
-          .select()
-          .single();
+        // Create new member via Edge Function
+        const response = await supabase.functions.invoke("manage-family-member", {
+          headers: { Authorization: `Bearer ${token}` },
+          body: {
+            action: "create",
+            memberData,
+          },
+        });
 
-        if (error) throw error;
+        if (response.error) throw new Error(response.error.message);
+        if (response.data?.error) throw new Error(response.data.error);
 
-        if (avatarFile && newMember) {
+        const newMember = response.data;
+
+        if (avatarFile && newMember?.id) {
           const avatarUrl = await uploadAvatar(newMember.id);
           if (avatarUrl) {
-            await supabase
-              .from("family_members")
-              .update({ avatar_url: avatarUrl })
-              .eq("id", newMember.id);
+            // Update avatar via Edge Function
+            await supabase.functions.invoke("manage-family-member", {
+              headers: { Authorization: `Bearer ${token}` },
+              body: {
+                action: "update",
+                memberId: newMember.id,
+                memberData: { avatar_url: avatarUrl },
+              },
+            });
           }
         }
 

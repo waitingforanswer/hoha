@@ -184,20 +184,36 @@ const AdminMembers = () => {
   const handleDelete = async () => {
     if (!memberToDelete) return;
 
-    const { error } = await supabase
-      .from("family_members")
-      .delete()
-      .eq("id", memberToDelete.id);
+    try {
+      const token = supabaseSession?.access_token || appSession?.token;
+      if (!token) {
+        toast({
+          title: "Lỗi",
+          description: "Phiên đăng nhập không hợp lệ",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    if (error) {
-      toast({
-        title: "Lỗi",
-        description: "Không thể xóa thành viên",
-        variant: "destructive",
+      const response = await supabase.functions.invoke("manage-family-member", {
+        headers: { Authorization: `Bearer ${token}` },
+        body: {
+          action: "delete",
+          memberId: memberToDelete.id,
+        },
       });
-    } else {
+
+      if (response.error) throw new Error(response.error.message);
+      if (response.data?.error) throw new Error(response.data.error);
+
       toast({ title: "Đã xóa thành viên!" });
       fetchMembers();
+    } catch (error: any) {
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể xóa thành viên",
+        variant: "destructive",
+      });
     }
 
     setDeleteDialogOpen(false);
