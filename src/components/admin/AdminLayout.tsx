@@ -15,7 +15,8 @@ import {
   Navigation,
   Footprints,
   File,
-  UserCog
+  UserCog,
+  HelpCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -91,6 +92,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   if (isAdmin || hasPermission('MANAGE_POSTS')) {
     mainMenuItems.push({ icon: FileText, label: "Bài viết", path: "/admin/posts" });
   }
+
+  // Add Help menu for everyone
+  mainMenuItems.push({ icon: HelpCircle, label: "Hướng dẫn", path: "/admin/help" });
 
   // Settings submenu - filtered based on role and permissions
   const settingsSubMenu: MenuItem[] = [];
