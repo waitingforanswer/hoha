@@ -381,7 +381,56 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
   
+  // Render children for a specific mother
+  const renderChildren = (
+    children: FamilyMember[], 
+    processedIds: Set<string>, 
+    childrenContinueBloodline: boolean
+  ): React.ReactNode => {
+    if (children.length === 0) return null;
+    
+    return (
+      <div className="flex gap-6 relative">
+        {/* Horizontal line connecting siblings */}
+        {children.length > 1 && (
+          <div 
+            className={cn(
+              "absolute top-0 left-1/2 -translate-x-1/2",
+              childrenContinueBloodline 
+                ? "h-[3px] bg-lineage-primary" 
+                : "h-0.5 border-t-2 border-dashed border-lineage-faded"
+            )}
+            style={{ width: `calc(100% - 80px)` }}
+          />
+        )}
+        
+        {children.map(child => {
+          const isOtherType = child.lineage_type === 'maternal';
+          // Only recursively render primary lineage children or "Khác" type
+          if (child.is_primary_lineage !== false || isOtherType) {
+            return (
+              <div key={child.id} className="relative flex flex-col items-center pt-3">
+                {/* Vertical connector from horizontal line to child */}
+                <div className={cn(
+                  "absolute top-0 left-1/2 -translate-x-1/2 h-3",
+                  isOtherType 
+                    ? "w-[1px] bg-foreground/50" 
+                    : childrenContinueBloodline 
+                      ? "w-[3px] bg-lineage-primary" 
+                      : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+                )} />
+                {renderFamilyTree(child, processedIds)}
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
+  };
+
   // Recursive function to render family tree with multiple spouses support
+  // Layout: Husband on top, wives stacked vertically below with children from each wife
   const renderFamilyTree = (primaryMember: FamilyMember, processedIds: Set<string>): React.ReactNode => {
     if (processedIds.has(primaryMember.id)) return null;
     processedIds.add(primaryMember.id);
@@ -401,9 +450,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
     if (primaryMember.gender === 'male') {
       spouses.forEach(({ spouse }) => {
         const children = getChildrenForCouple(primaryMember.id, spouse.id);
-        if (children.length > 0) {
-          childrenByMother.set(spouse.id, children);
-        }
+        childrenByMother.set(spouse.id, children);
       });
       
       // Also get children with unknown mother
@@ -422,33 +469,97 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
         childrenByMother.set(primaryMember.id, children);
       }
     }
+
+    // CASE: Male with multiple wives - vertical layout
+    if (primaryMember.gender === 'male' && hasMultipleSpouses) {
+      return (
+        <div key={primaryMember.id} className="flex flex-col items-center">
+          {/* Husband card */}
+          <FamilyTreeNode member={primaryMember} />
+          
+          {/* Vertical dashed line from husband going down */}
+          <div className="w-0.5 h-6 border-l-2 border-dashed border-lineage-marriage" />
+          
+          {/* Horizontal line connecting to wives */}
+          <div className="flex items-start relative">
+            {/* Horizontal connector spanning all wives */}
+            <div 
+              className="absolute top-0 left-0 right-0 h-0.5 border-t-2 border-dashed border-lineage-marriage"
+            />
+            
+            {/* Wives with their children */}
+            <div className="flex gap-8">
+              {spouses.map(({ spouse, order }, idx) => {
+                const motherChildren = childrenByMother.get(spouse.id) || [];
+                
+                return (
+                  <div key={spouse.id} className="flex flex-col items-center">
+                    {/* Vertical line from horizontal to wife */}
+                    <div className="w-0.5 h-6 border-l-2 border-dashed border-lineage-marriage" />
+                    
+                    {/* Wife card */}
+                    <FamilyTreeNode 
+                      member={spouse} 
+                      isSpouse 
+                      wifeOrder={order}
+                    />
+                    
+                    {/* Children of this wife */}
+                    {motherChildren.length > 0 && (
+                      <div className="flex flex-col items-center mt-1">
+                        {/* Vertical line from wife to children */}
+                        <div className={cn(
+                          "h-6",
+                          childrenContinueBloodline 
+                            ? "w-[3px] bg-lineage-primary" 
+                            : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+                        )} />
+                        
+                        {renderChildren(motherChildren, processedIds, childrenContinueBloodline)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          {/* Children with unknown mother */}
+          {childrenByMother.get(null) && childrenByMother.get(null)!.length > 0 && (
+            <div className="flex flex-col items-center mt-4">
+              <div className={cn(
+                "h-6",
+                childrenContinueBloodline 
+                  ? "w-[3px] bg-lineage-primary" 
+                  : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+              )} />
+              {renderChildren(childrenByMother.get(null)!, processedIds, childrenContinueBloodline)}
+            </div>
+          )}
+        </div>
+      );
+    }
     
+    // CASE: Single spouse or no spouse - horizontal layout (original)
     return (
       <div key={primaryMember.id} className="flex flex-col items-center gap-3">
-        {/* Couple display with multiple spouses support */}
+        {/* Couple display */}
         <div className="flex items-start gap-2">
           <FamilyTreeNode member={primaryMember} />
           
           {spouses.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {spouses.map(({ spouse, order, isActive }, idx) => (
-                <div key={spouse.id} className="flex items-center">
-                  {/* Marriage connector - dashed gray line */}
-                  <div className="flex items-center">
-                    <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
-                  </div>
-                  <FamilyTreeNode 
-                    member={spouse} 
-                    isSpouse 
-                    wifeOrder={hasMultipleSpouses ? order : undefined}
-                  />
-                </div>
-              ))}
+            <div className="flex items-center">
+              {/* Marriage connector - dashed gray line */}
+              <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
+              <FamilyTreeNode 
+                member={spouses[0].spouse} 
+                isSpouse 
+              />
             </div>
           )}
         </div>
         
-        {/* Children - grouped by mother if multiple wives */}
+        {/* Children */}
         {childrenByMother.size > 0 && (
           <div className="relative">
             {/* Connector line from parent to children */}
@@ -461,42 +572,12 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
               )}
             />
             
-            <div className="flex gap-6 pt-3 relative">
-              {/* Horizontal line connecting children */}
-              {Array.from(childrenByMother.values()).flat().length > 1 && (
-                <div 
-                  className={cn(
-                    "absolute top-0 left-1/2 -translate-x-1/2",
-                    childrenContinueBloodline 
-                      ? "h-[3px] bg-lineage-primary" 
-                      : "h-0.5 border-t-2 border-dashed border-lineage-faded"
-                  )}
-                  style={{ width: `calc(100% - 80px)` }}
-                />
+            <div className="pt-3">
+              {renderChildren(
+                Array.from(childrenByMother.values()).flat(), 
+                processedIds, 
+                childrenContinueBloodline
               )}
-              
-              {Array.from(childrenByMother.entries()).map(([motherId, children]) => (
-                children.map(child => {
-                  const isOtherType = child.lineage_type === 'maternal';
-                  // Only recursively render primary lineage children or "Khác" type
-                  if (child.is_primary_lineage !== false || isOtherType) {
-                    return (
-                      <div key={child.id} className="relative flex flex-col items-center">
-                        <div className={cn(
-                          "-mt-3 h-6",
-                          isOtherType 
-                            ? "w-[1px] bg-foreground/50" 
-                            : childrenContinueBloodline 
-                              ? "w-[3px] bg-lineage-primary" 
-                              : "w-0.5 border-l-2 border-dashed border-lineage-faded"
-                        )} />
-                        {renderFamilyTree(child, processedIds)}
-                      </div>
-                    );
-                  }
-                  return null;
-                })
-              ))}
             </div>
           </div>
         )}
