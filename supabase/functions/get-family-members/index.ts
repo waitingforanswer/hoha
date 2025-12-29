@@ -35,11 +35,36 @@ Deno.serve(async (req) => {
       const { data: { user: supabaseUser } } = await supabaseAuth.auth.getUser();
       
       if (supabaseUser) {
-        // Check if this Supabase user is an admin
-        const { data: isAdmin } = await supabaseAdmin.rpc("is_admin", { _user_id: supabaseUser.id });
+        // Check if this Supabase user is an admin/sub-admin OR has relevant permissions
+        const [{ data: isAdmin }, { data: isSubAdmin }] = await Promise.all([
+          supabaseAdmin.rpc("is_admin", { _user_id: supabaseUser.id }),
+          supabaseAdmin.rpc("is_sub_admin", { _user_id: supabaseUser.id }),
+        ]);
+
         if (isAdmin) {
           hasAccess = true;
           console.log("Access granted via Supabase Auth (admin)");
+        } else if (isSubAdmin) {
+          hasAccess = true;
+          console.log("Access granted via Supabase Auth (sub_admin)");
+        } else {
+          const [viewPermResult, managePermResult] = await Promise.all([
+            supabaseAdmin.rpc("has_permission", {
+              _user_id: supabaseUser.id,
+              _permission_code: "VIEW_FAMILY_TREE",
+            }),
+            supabaseAdmin.rpc("has_permission", {
+              _user_id: supabaseUser.id,
+              _permission_code: "MANAGE_MEMBERS",
+            }),
+          ]);
+
+          if (viewPermResult.data || managePermResult.data) {
+            hasAccess = true;
+            console.log(
+              "Access granted via Supabase Auth permission (VIEW_FAMILY_TREE or MANAGE_MEMBERS)",
+            );
+          }
         }
       }
       
