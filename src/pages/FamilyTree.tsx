@@ -10,12 +10,40 @@ import { useAuth } from "@/hooks/useAuth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+export interface FamilyMember {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  birth_date: string | null;
+  death_date: string | null;
+  is_alive: boolean | null;
+  address: string | null;
+  gender: string | null;
+  father_id: string | null;
+  mother_id: string | null;
+  generation: number;
+  spouse_id: string | null;
+  is_primary_lineage: boolean | null;
+  lineage_type?: string | null;
+}
+
+export interface FamilyMarriage {
+  id: string;
+  husband_id: string;
+  wife_id: string;
+  marriage_order: number;
+  marriage_date: string | null;
+  divorce_date: string | null;
+  is_active: boolean;
+  notes: string | null;
+}
+
 const FamilyTree = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const { session: appSession } = useAppAuth();
   const { session: supabaseSession } = useAuth();
 
-  const { data: members = [], isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["family-members", appSession?.token, supabaseSession?.access_token],
     queryFn: async () => {
       // Get authorization token - prefer app session, fallback to supabase session
@@ -34,9 +62,19 @@ const FamilyTree = () => {
         throw new Error(error.message || "Failed to fetch family members");
       }
 
-      return response.json();
+      const result = await response.json();
+      
+      // Handle both old format (array) and new format ({ members, marriages })
+      if (Array.isArray(result)) {
+        return { members: result as FamilyMember[], marriages: [] as FamilyMarriage[] };
+      }
+      
+      return result as { members: FamilyMember[]; marriages: FamilyMarriage[] };
     },
   });
+
+  const members = data?.members || [];
+  const marriages = data?.marriages || [];
 
   const filteredMembers = members.filter(member =>
     member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,7 +130,7 @@ const FamilyTree = () => {
               </CardContent>
             </Card>
           ) : (
-            <FamilyTreeView members={filteredMembers} />
+            <FamilyTreeView members={filteredMembers} marriages={marriages} />
           )}
         </div>
       </section>

@@ -40,13 +40,42 @@ interface FamilyMember {
   lineage_type?: string | null;
 }
 
-interface FamilyTreeViewProps {
-  members: FamilyMember[];
+interface FamilyMarriage {
+  id: string;
+  husband_id: string;
+  wife_id: string;
+  marriage_order: number;
+  marriage_date: string | null;
+  divorce_date: string | null;
+  is_active: boolean;
+  notes: string | null;
 }
 
-function buildFamilyTree(members: FamilyMember[]) {
+interface FamilyTreeViewProps {
+  members: FamilyMember[];
+  marriages?: FamilyMarriage[];
+}
+
+function buildFamilyTree(members: FamilyMember[], marriages: FamilyMarriage[] = []) {
   const memberMap = new Map<string, FamilyMember>();
   members.forEach(m => memberMap.set(m.id, m));
+  
+  // Build marriages map: husband_id -> array of wives (sorted by marriage_order)
+  const marriagesMap = new Map<string, Array<{ wife: FamilyMember; order: number; isActive: boolean }>>();
+  
+  marriages.forEach(m => {
+    const wife = memberMap.get(m.wife_id);
+    if (wife) {
+      const existing = marriagesMap.get(m.husband_id) || [];
+      existing.push({ wife, order: m.marriage_order, isActive: m.is_active });
+      marriagesMap.set(m.husband_id, existing);
+    }
+  });
+  
+  // Sort wives by marriage_order
+  marriagesMap.forEach((wives, husbandId) => {
+    wives.sort((a, b) => a.order - b.order);
+  });
   
   // Find all children for a couple (father + mother)
   const getChildrenForCouple = (fatherId: string | null, motherId: string | null): FamilyMember[] => {
@@ -69,11 +98,19 @@ function buildFamilyTree(members: FamilyMember[]) {
     });
   };
   
-  // Find spouse for a member
-  const getSpouse = (member: FamilyMember): FamilyMember | null => {
-    // Check direct spouse_id link
+  // Get all spouses for a member (supports multiple wives)
+  const getSpouses = (member: FamilyMember): Array<{ spouse: FamilyMember; order: number; isActive: boolean }> => {
+    // Check marriages table first (for multiple wives)
+    if (member.gender === 'male') {
+      const wives = marriagesMap.get(member.id);
+      if (wives && wives.length > 0) {
+        return wives.map(w => ({ spouse: w.wife, order: w.order, isActive: w.isActive }));
+      }
+    }
+    
+    // Fallback to spouse_id for backwards compatibility
     if (member.spouse_id && memberMap.has(member.spouse_id)) {
-      return memberMap.get(member.spouse_id)!;
+      return [{ spouse: memberMap.get(member.spouse_id)!, order: 1, isActive: true }];
     }
     
     // Find spouse by looking at children's parents
@@ -81,16 +118,23 @@ function buildFamilyTree(members: FamilyMember[]) {
       m.father_id === member.id || m.mother_id === member.id
     );
     
+    // Group by spouse to find all unique spouses
+    const spouseMap = new Map<string, FamilyMember>();
     for (const child of children) {
       if (member.gender === 'male' && child.mother_id && memberMap.has(child.mother_id)) {
-        return memberMap.get(child.mother_id)!;
+        spouseMap.set(child.mother_id, memberMap.get(child.mother_id)!);
       }
       if (member.gender === 'female' && child.father_id && memberMap.has(child.father_id)) {
-        return memberMap.get(child.father_id)!;
+        spouseMap.set(child.father_id, memberMap.get(child.father_id)!);
       }
     }
     
-    return null;
+    // Return all found spouses (without order info, they all get order 1)
+    return Array.from(spouseMap.values()).map((spouse, idx) => ({
+      spouse,
+      order: idx + 1,
+      isActive: true
+    }));
   };
   
   // Find root members (primary lineage members without parents in the system, or oldest generation)
@@ -106,10 +150,22 @@ function buildFamilyTree(members: FamilyMember[]) {
     return !hasParentInSystem;
   }).sort((a, b) => a.generation - b.generation);
   
-  return { rootMembers, memberMap, getChildrenForCouple, getSpouse };
+  return { rootMembers, memberMap, getChildrenForCouple, getSpouses, marriagesMap };
 }
 
-export function FamilyTreeView({ members }: FamilyTreeViewProps) {
+// Helper to get wife label
+function getWifeLabel(order: number): string {
+  switch (order) {
+    case 1: return "Vợ cả";
+    case 2: return "Vợ hai";
+    case 3: return "Vợ ba";
+    case 4: return "Vợ tư";
+    case 5: return "Vợ năm";
+    default: return `Vợ ${order}`;
+  }
+}
+
+export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps) {
   const isMobile = useIsMobile();
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -129,7 +185,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   
-  const { rootMembers, memberMap, getChildrenForCouple, getSpouse } = buildFamilyTree(members);
+  const { rootMembers, memberMap, getChildrenForCouple, getSpouses, marriagesMap } = buildFamilyTree(members, marriages);
   
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.2, 3));
@@ -313,8 +369,6 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     };
   }, [members, zoom, isFullscreen]);
 
-  // Touch zoom and drag are now handled via React event handlers
-
   // Handle escape key to exit fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -327,49 +381,86 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
   
-  // Recursive function to render family tree - always vertical, no expand/collapse
+  // Recursive function to render family tree with multiple spouses support
   const renderFamilyTree = (primaryMember: FamilyMember, processedIds: Set<string>): React.ReactNode => {
     if (processedIds.has(primaryMember.id)) return null;
     processedIds.add(primaryMember.id);
     
-    const spouse = getSpouse(primaryMember);
-    if (spouse) {
-      processedIds.add(spouse.id);
-    }
+    const spouses = getSpouses(primaryMember);
+    const hasMultipleSpouses = spouses.length > 1;
     
-    // Get children of this couple
-    const children = getChildrenForCouple(
-      primaryMember.gender === 'male' ? primaryMember.id : spouse?.id || null,
-      primaryMember.gender === 'female' ? primaryMember.id : spouse?.id || null
-    );
+    // Mark all spouses as processed
+    spouses.forEach(s => processedIds.add(s.spouse.id));
     
     // Check if children continue the bloodline (họ Hà)
     const childrenContinueBloodline = primaryMember.is_primary_lineage !== false && primaryMember.gender === 'male';
     
-    // Check if any children are "Khác" (maternal lineage type)
-    const hasOtherTypeChildren = children.some(child => child.lineage_type === 'maternal');
+    // Get all children grouped by mother
+    const childrenByMother = new Map<string | null, FamilyMember[]>();
+    
+    if (primaryMember.gender === 'male') {
+      spouses.forEach(({ spouse }) => {
+        const children = getChildrenForCouple(primaryMember.id, spouse.id);
+        if (children.length > 0) {
+          childrenByMother.set(spouse.id, children);
+        }
+      });
+      
+      // Also get children with unknown mother
+      const childrenWithUnknownMother = members.filter(m => 
+        m.father_id === primaryMember.id && 
+        (!m.mother_id || !spouses.find(s => s.spouse.id === m.mother_id))
+      );
+      if (childrenWithUnknownMother.length > 0) {
+        childrenByMother.set(null, childrenWithUnknownMother);
+      }
+    } else {
+      // For female members, get children with husband
+      const spouse = spouses[0]?.spouse;
+      const children = getChildrenForCouple(spouse?.id || null, primaryMember.id);
+      if (children.length > 0) {
+        childrenByMother.set(primaryMember.id, children);
+      }
+    }
+    
+    // Check if husband is deceased (for widow status)
+    const isWidow = (spouse: FamilyMember) => {
+      if (primaryMember.gender === 'male' && primaryMember.is_alive === false) {
+        return true;
+      }
+      return false;
+    };
     
     return (
       <div key={primaryMember.id} className="flex flex-col items-center gap-3">
-        {/* Couple display */}
-        <div className="flex items-center gap-2">
+        {/* Couple display with multiple spouses support */}
+        <div className="flex items-start gap-2">
           <FamilyTreeNode member={primaryMember} />
           
-          {spouse && (
-            <>
-              {/* Marriage connector - dashed gray line */}
-              <div className="flex items-center">
-                <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
-              </div>
-              <FamilyTreeNode member={spouse} isSpouse />
-            </>
+          {spouses.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {spouses.map(({ spouse, order, isActive }, idx) => (
+                <div key={spouse.id} className="flex items-center">
+                  {/* Marriage connector - dashed gray line */}
+                  <div className="flex items-center">
+                    <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
+                  </div>
+                  <FamilyTreeNode 
+                    member={spouse} 
+                    isSpouse 
+                    wifeOrder={hasMultipleSpouses ? order : undefined}
+                    isWidow={isWidow(spouse)}
+                  />
+                </div>
+              ))}
+            </div>
           )}
         </div>
         
-        {/* Children */}
-        {children.length > 0 && (
+        {/* Children - grouped by mother if multiple wives */}
+        {childrenByMother.size > 0 && (
           <div className="relative">
-            {/* Connector line from parent to children - bloodline or faded */}
+            {/* Connector line from parent to children */}
             <div 
               className={cn(
                 "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full",
@@ -381,7 +472,7 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
             
             <div className="flex gap-6 pt-3 relative">
               {/* Horizontal line connecting children */}
-              {children.length > 1 && (
+              {Array.from(childrenByMother.values()).flat().length > 1 && (
                 <div 
                   className={cn(
                     "absolute top-0 left-1/2 -translate-x-1/2",
@@ -393,26 +484,28 @@ export function FamilyTreeView({ members }: FamilyTreeViewProps) {
                 />
               )}
               
-              {children.map(child => {
-                const isOtherType = child.lineage_type === 'maternal';
-                // Only recursively render primary lineage children or "Khác" type
-                if (child.is_primary_lineage !== false || isOtherType) {
-                  return (
-                    <div key={child.id} className="relative flex flex-col items-center">
-                      <div className={cn(
-                        "-mt-3 h-6",
-                        isOtherType 
-                          ? "w-[1px] bg-foreground/50" 
-                          : childrenContinueBloodline 
-                            ? "w-[3px] bg-lineage-primary" 
-                            : "w-0.5 border-l-2 border-dashed border-lineage-faded"
-                      )} />
-                      {renderFamilyTree(child, processedIds)}
-                    </div>
-                  );
-                }
-                return null;
-              })}
+              {Array.from(childrenByMother.entries()).map(([motherId, children]) => (
+                children.map(child => {
+                  const isOtherType = child.lineage_type === 'maternal';
+                  // Only recursively render primary lineage children or "Khác" type
+                  if (child.is_primary_lineage !== false || isOtherType) {
+                    return (
+                      <div key={child.id} className="relative flex flex-col items-center">
+                        <div className={cn(
+                          "-mt-3 h-6",
+                          isOtherType 
+                            ? "w-[1px] bg-foreground/50" 
+                            : childrenContinueBloodline 
+                              ? "w-[3px] bg-lineage-primary" 
+                              : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+                        )} />
+                        {renderFamilyTree(child, processedIds)}
+                      </div>
+                    );
+                  }
+                  return null;
+                })
+              ))}
             </div>
           </div>
         )}

@@ -40,6 +40,8 @@ interface FamilyMember {
 interface FamilyTreeNodeProps {
   member: FamilyMember;
   isSpouse?: boolean;
+  wifeOrder?: number; // 1 = Vợ cả, 2 = Vợ hai, etc.
+  isWidow?: boolean; // Chồng đã mất
 }
 
 const calculateAge = (birthDate: string | null, deathDate: string | null, isAlive: boolean | null): number | null => {
@@ -58,7 +60,19 @@ const calculateAge = (birthDate: string | null, deathDate: string | null, isAliv
   return age;
 };
 
-export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps) {
+// Helper to get wife label
+function getWifeLabel(order: number): string {
+  switch (order) {
+    case 1: return "Vợ cả";
+    case 2: return "Vợ hai";
+    case 3: return "Vợ ba";
+    case 4: return "Vợ tư";
+    case 5: return "Vợ năm";
+    default: return `Vợ ${order}`;
+  }
+}
+
+export function FamilyTreeNode({ member, isSpouse = false, wifeOrder, isWidow = false }: FamilyTreeNodeProps) {
   const age = calculateAge(member.birth_date, member.death_date, member.is_alive);
   const isDeceased = member.is_alive === false;
   const isMale = member.gender === "male";
@@ -76,6 +90,11 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
   
   // Determine role label for non-primary lineage
   const getRoleLabel = () => {
+    // Show wife order label if multiple wives
+    if (wifeOrder !== undefined && wifeOrder > 0) {
+      return getWifeLabel(wifeOrder);
+    }
+    
     if (isPrimaryLineage) return null;
     if (isMaternalLineage) return "Khác";
     return isMale ? "Rể" : "Dâu";
@@ -88,6 +107,17 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
     if (isMaternalLineage) return "border-2 border-foreground/40";
     if (isPrimaryLineage) return "border-2 border-lineage-primary shadow-sm";
     return "border-2 border-lineage-secondary-light border-dashed";
+  };
+
+  // Get wife order badge color
+  const getWifeBadgeClass = () => {
+    if (!wifeOrder) return "";
+    switch (wifeOrder) {
+      case 1: return "bg-pink-500 text-white";
+      case 2: return "bg-purple-500 text-white";
+      case 3: return "bg-indigo-500 text-white";
+      default: return "bg-slate-500 text-white";
+    }
   };
   
   return (
@@ -115,13 +145,21 @@ export function FamilyTreeNode({ member, isSpouse = false }: FamilyTreeNodeProps
         )}
       </div>
 
-      {/* Role label for Dâu/Rể/Khác - top left */}
+      {/* Role label for Dâu/Rể/Khác/Vợ cả/Vợ hai - top left */}
       {roleLabel && (
         <div className={cn(
           "absolute -top-2 -left-2 text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm",
+          wifeOrder ? getWifeBadgeClass() : 
           isMaternalLineage ? "bg-muted text-foreground border border-foreground/30" : "bg-lineage-secondary text-white"
         )}>
           {roleLabel}
+        </div>
+      )}
+
+      {/* Widow indicator */}
+      {isWidow && isFemale && (
+        <div className="absolute top-6 -left-2 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-muted-foreground/30">
+          Góa phụ
         </div>
       )}
       

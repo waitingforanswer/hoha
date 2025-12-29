@@ -96,10 +96,26 @@ Deno.serve(async (req) => {
       );
     }
     
-    console.log(`Returning ${members?.length || 0} family members`);
+    // Fetch marriages data
+    const { data: marriages, error: marriagesError } = await supabaseAdmin
+      .from("family_marriages")
+      .select("*")
+      .order("marriage_order", { ascending: true });
+    
+    if (marriagesError) {
+      console.error("Error fetching marriages:", marriagesError);
+      // Don't fail, just return members without marriages
+      console.log(`Returning ${members?.length || 0} family members (no marriages data)`);
+      return new Response(
+        JSON.stringify({ members: members || [], marriages: [] }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    console.log(`Returning ${members?.length || 0} family members, ${marriages?.length || 0} marriages`);
     
     return new Response(
-      JSON.stringify(members || []),
+      JSON.stringify({ members: members || [], marriages: marriages || [] }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
     

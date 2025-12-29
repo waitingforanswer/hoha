@@ -139,6 +139,60 @@ export type Database = {
         }
         Relationships: []
       }
+      family_marriages: {
+        Row: {
+          created_at: string
+          divorce_date: string | null
+          husband_id: string
+          id: string
+          is_active: boolean
+          marriage_date: string | null
+          marriage_order: number
+          notes: string | null
+          updated_at: string
+          wife_id: string
+        }
+        Insert: {
+          created_at?: string
+          divorce_date?: string | null
+          husband_id: string
+          id?: string
+          is_active?: boolean
+          marriage_date?: string | null
+          marriage_order?: number
+          notes?: string | null
+          updated_at?: string
+          wife_id: string
+        }
+        Update: {
+          created_at?: string
+          divorce_date?: string | null
+          husband_id?: string
+          id?: string
+          is_active?: boolean
+          marriage_date?: string | null
+          marriage_order?: number
+          notes?: string | null
+          updated_at?: string
+          wife_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_marriages_husband_id_fkey"
+            columns: ["husband_id"]
+            isOneToOne: false
+            referencedRelation: "family_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_marriages_wife_id_fkey"
+            columns: ["wife_id"]
+            isOneToOne: false
+            referencedRelation: "family_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       family_members: {
         Row: {
           address: string | null
