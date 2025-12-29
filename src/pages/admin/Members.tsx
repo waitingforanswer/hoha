@@ -80,7 +80,15 @@ const AdminMembers = () => {
         throw new Error(response.data.message || response.data.error);
       }
 
-      setMembers(Array.isArray(response.data) ? response.data : []);
+      // Handle both old format (array) and new format ({ members, marriages })
+      const data: any = response.data;
+      if (Array.isArray(data)) {
+        setMembers(data as FamilyMember[]);
+      } else if (data && Array.isArray(data.members)) {
+        setMembers(data.members as FamilyMember[]);
+      } else {
+        setMembers([]);
+      }
     } catch (error: any) {
       console.error("Fetch members error:", error);
       toast({
