@@ -41,7 +41,6 @@ interface FamilyTreeNodeProps {
   member: FamilyMember;
   isSpouse?: boolean;
   wifeOrder?: number; // 1 = Vợ cả, 2 = Vợ hai, etc.
-  isWidow?: boolean; // Chồng đã mất
 }
 
 const calculateAge = (birthDate: string | null, deathDate: string | null, isAlive: boolean | null): number | null => {
@@ -72,7 +71,7 @@ function getWifeLabel(order: number): string {
   }
 }
 
-export function FamilyTreeNode({ member, isSpouse = false, wifeOrder, isWidow = false }: FamilyTreeNodeProps) {
+export function FamilyTreeNode({ member, isSpouse = false, wifeOrder }: FamilyTreeNodeProps) {
   const age = calculateAge(member.birth_date, member.death_date, member.is_alive);
   const isDeceased = member.is_alive === false;
   const isMale = member.gender === "male";
@@ -153,13 +152,6 @@ export function FamilyTreeNode({ member, isSpouse = false, wifeOrder, isWidow = 
           isMaternalLineage ? "bg-muted text-foreground border border-foreground/30" : "bg-lineage-secondary text-white"
         )}>
           {roleLabel}
-        </div>
-      )}
-
-      {/* Widow indicator */}
-      {isWidow && isFemale && (
-        <div className="absolute top-6 -left-2 text-[9px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-muted-foreground/30">
-          Góa phụ
         </div>
       )}
       
