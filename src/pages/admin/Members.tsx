@@ -24,6 +24,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Pencil, Trash2, QrCode, User, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
@@ -33,6 +42,8 @@ type FamilyMember = Tables<"family_members">;
 
 type SortField = "full_name" | "generation" | "gender" | "birth_date" | "is_alive" | "updated_at";
 type SortDirection = "asc" | "desc";
+
+const ITEMS_PER_PAGE = 20;
 
 const AdminMembers = () => {
   const { supabaseSession, appSession, isAdmin } = useAdminAuth();
@@ -46,12 +57,12 @@ const AdminMembers = () => {
   const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null);
   const [sortField, setSortField] = useState<SortField>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
   const fetchMembers = async () => {
     setLoading(true);
     try {
-      // Get the appropriate token
       const token = supabaseSession?.access_token || appSession?.token;
       
       if (!token) {
@@ -64,7 +75,6 @@ const AdminMembers = () => {
         return;
       }
 
-      // Use Edge Function to fetch members (bypasses RLS for app_users)
       const response = await supabase.functions.invoke("get-family-members", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -75,12 +85,10 @@ const AdminMembers = () => {
         throw new Error(response.error.message);
       }
 
-      // Check if response is an error object
       if (response.data?.error) {
         throw new Error(response.data.message || response.data.error);
       }
 
-      // Handle both old format (array) and new format ({ members, marriages })
       const data: any = response.data;
       if (Array.isArray(data)) {
         setMembers(data as FamilyMember[]);
@@ -105,6 +113,11 @@ const AdminMembers = () => {
     fetchMembers();
   }, [supabaseSession, appSession]);
 
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -112,6 +125,7 @@ const AdminMembers = () => {
       setSortField(field);
       setSortDirection(field === "updated_at" ? "desc" : "asc");
     }
+    setCurrentPage(1); // Reset to page 1 when sorting changes
   };
 
   const getSortIcon = (field: SortField) => {
@@ -125,6 +139,7 @@ const AdminMembers = () => {
     );
   };
 
+  // Filter and sort all members (search works across all)
   const sortedAndFilteredMembers = useMemo(() => {
     let filtered = members.filter((m) =>
       m.full_name.toLowerCase().includes(search.toLowerCase())
@@ -168,6 +183,36 @@ const AdminMembers = () => {
       return 0;
     });
   }, [members, search, sortField, sortDirection]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(sortedAndFilteredMembers.length / ITEMS_PER_PAGE);
+  const paginatedMembers = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return sortedAndFilteredMembers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [sortedAndFilteredMembers, currentPage]);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    const maxVisible = 5;
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push("ellipsis");
+      
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      
+      for (let i = start; i <= end; i++) pages.push(i);
+      
+      if (currentPage < totalPages - 2) pages.push("ellipsis");
+      pages.push(totalPages);
+    }
+    
+    return pages;
+  };
 
   const handleEdit = (member: FamilyMember) => {
     setSelectedMember(member);
@@ -243,7 +288,7 @@ const AdminMembers = () => {
           <div>
             <h1 className="font-serif text-3xl font-bold">Quản lý thành viên</h1>
             <p className="mt-1 text-muted-foreground">
-              {members.length} thành viên trong gia phả
+              {sortedAndFilteredMembers.length} thành viên {search && `(tìm thấy từ ${members.length} thành viên)`}
             </p>
           </div>
           <Button onClick={handleAdd}>
@@ -272,7 +317,7 @@ const AdminMembers = () => {
           ) : sortedAndFilteredMembers.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
               <User className="mb-2 h-12 w-12" />
-              <p>Chưa có thành viên nào</p>
+              <p>{search ? "Không tìm thấy thành viên phù hợp" : "Chưa có thành viên nào"}</p>
             </div>
           ) : (
             <Table>
@@ -337,7 +382,7 @@ const AdminMembers = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedAndFilteredMembers.map((member) => (
+                {paginatedMembers.map((member) => (
                   <TableRow key={member.id}>
                     <TableCell>
                       <div className="h-10 w-10 overflow-hidden rounded-full bg-muted">
@@ -419,6 +464,48 @@ const AdminMembers = () => {
             </Table>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              Hiển thị {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, sortedAndFilteredMembers.length)} / {sortedAndFilteredMembers.length} thành viên
+            </p>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                {getPageNumbers().map((page, idx) =>
+                  page === "ellipsis" ? (
+                    <PaginationItem key={`ellipsis-${idx}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(page)}
+                        isActive={currentPage === page}
+                        className="cursor-pointer"
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                )}
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </div>
 
       {/* Form Dialog */}
