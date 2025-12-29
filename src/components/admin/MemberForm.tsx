@@ -22,9 +22,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, Crop, RefreshCw } from "lucide-react";
+import { Upload, X, RefreshCw } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import AvatarCropper from "./AvatarCropper";
+import MarriageManager from "./MarriageManager";
 
 type FamilyMember = Tables<"family_members">;
 
@@ -506,27 +507,45 @@ const MemberForm = ({
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Vợ/Chồng</Label>
-                <Select
-                  value={watch("spouse_id") || ""}
-                  onValueChange={(value) => setValue("spouse_id", value === "none" ? "" : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn vợ/chồng" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">-- Không có --</SelectItem>
-                    {allMembers
-                      .filter(m => m.id !== member?.id && m.gender !== currentGender)
-                      .map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.full_name} (Đời {m.generation})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Marriage Manager - only show for existing members */}
+              {member && (
+                <div className="sm:col-span-2">
+                  <MarriageManager
+                    memberId={member.id}
+                    memberGender={currentGender || null}
+                    allMembers={allMembers}
+                    authToken={getAuthToken()}
+                  />
+                </div>
+              )}
+
+              {/* Simple spouse select for new members */}
+              {!member && (
+                <div className="space-y-2">
+                  <Label>Vợ/Chồng (có thể thêm sau)</Label>
+                  <Select
+                    value={watch("spouse_id") || ""}
+                    onValueChange={(value) => setValue("spouse_id", value === "none" ? "" : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn vợ/chồng" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">-- Không có --</SelectItem>
+                      {allMembers
+                        .filter(m => m.id !== member?.id && m.gender !== currentGender)
+                        .map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.full_name} (Đời {m.generation})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Sau khi lưu, bạn có thể quản lý nhiều hôn nhân chi tiết hơn
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Parent info */}

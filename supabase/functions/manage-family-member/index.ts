@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, memberId, memberData } = body;
+    const { action, memberId, memberData, marriageData, marriageId } = body;
 
     let result;
 
@@ -90,6 +90,7 @@ Deno.serve(async (req) => {
         
         if (createError) throw createError;
         result = newMember;
+        console.log("Created member:", newMember.id);
         break;
 
       case "update":
@@ -109,6 +110,7 @@ Deno.serve(async (req) => {
         
         if (updateError) throw updateError;
         result = updatedMember;
+        console.log("Updated member:", memberId);
         break;
 
       case "delete":
@@ -119,6 +121,12 @@ Deno.serve(async (req) => {
           );
         }
         
+        // First delete all marriages involving this member
+        await supabaseAdmin
+          .from("family_marriages")
+          .delete()
+          .or(`husband_id.eq.${memberId},wife_id.eq.${memberId}`);
+        
         const { error: deleteError } = await supabaseAdmin
           .from("family_members")
           .delete()
@@ -126,6 +134,172 @@ Deno.serve(async (req) => {
         
         if (deleteError) throw deleteError;
         result = { success: true };
+        console.log("Deleted member:", memberId);
+        break;
+
+      // Marriage management actions
+      case "list_marriages":
+        if (!memberId) {
+          return new Response(
+            JSON.stringify({ error: "Missing memberId for list_marriages" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        const { data: marriages, error: listError } = await supabaseAdmin
+          .from("family_marriages")
+          .select("*")
+          .or(`husband_id.eq.${memberId},wife_id.eq.${memberId}`)
+          .order("marriage_order", { ascending: true });
+        
+        if (listError) throw listError;
+        result = marriages || [];
+        console.log(`Listed ${result.length} marriages for member:`, memberId);
+        break;
+
+      case "create_marriage":
+        if (!marriageData) {
+          return new Response(
+            JSON.stringify({ error: "Missing marriageData for create_marriage" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        // Validate required fields
+        if (!marriageData.husband_id || !marriageData.wife_id) {
+          return new Response(
+            JSON.stringify({ error: "Missing husband_id or wife_id" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        // Get the next marriage order for this husband
+        const { data: existingMarriages } = await supabaseAdmin
+          .from("family_marriages")
+          .select("marriage_order")
+          .eq("husband_id", marriageData.husband_id)
+          .order("marriage_order", { ascending: false })
+          .limit(1);
+        
+        const nextOrder = existingMarriages && existingMarriages.length > 0 
+          ? existingMarriages[0].marriage_order + 1 
+          : 1;
+        
+        const { data: newMarriage, error: createMarriageError } = await supabaseAdmin
+          .from("family_marriages")
+          .insert({
+            husband_id: marriageData.husband_id,
+            wife_id: marriageData.wife_id,
+            marriage_order: marriageData.marriage_order || nextOrder,
+            marriage_date: marriageData.marriage_date || null,
+            divorce_date: marriageData.divorce_date || null,
+            is_active: marriageData.is_active !== false,
+            notes: marriageData.notes || null,
+          })
+          .select()
+          .single();
+        
+        if (createMarriageError) throw createMarriageError;
+        
+        // Update spouse_id on both members for backward compatibility
+        await supabaseAdmin
+          .from("family_members")
+          .update({ spouse_id: marriageData.wife_id })
+          .eq("id", marriageData.husband_id);
+        await supabaseAdmin
+          .from("family_members")
+          .update({ spouse_id: marriageData.husband_id })
+          .eq("id", marriageData.wife_id);
+        
+        result = newMarriage;
+        console.log("Created marriage:", newMarriage.id);
+        break;
+
+      case "update_marriage":
+        if (!marriageId || !marriageData) {
+          return new Response(
+            JSON.stringify({ error: "Missing marriageId or marriageData for update_marriage" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        const { data: updatedMarriage, error: updateMarriageError } = await supabaseAdmin
+          .from("family_marriages")
+          .update({
+            marriage_order: marriageData.marriage_order,
+            marriage_date: marriageData.marriage_date || null,
+            divorce_date: marriageData.divorce_date || null,
+            is_active: marriageData.is_active,
+            notes: marriageData.notes || null,
+          })
+          .eq("id", marriageId)
+          .select()
+          .single();
+        
+        if (updateMarriageError) throw updateMarriageError;
+        result = updatedMarriage;
+        console.log("Updated marriage:", marriageId);
+        break;
+
+      case "delete_marriage":
+        if (!marriageId) {
+          return new Response(
+            JSON.stringify({ error: "Missing marriageId for delete_marriage" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        // Get marriage info before deleting
+        const { data: marriageToDelete } = await supabaseAdmin
+          .from("family_marriages")
+          .select("husband_id, wife_id")
+          .eq("id", marriageId)
+          .single();
+        
+        const { error: deleteMarriageError } = await supabaseAdmin
+          .from("family_marriages")
+          .delete()
+          .eq("id", marriageId);
+        
+        if (deleteMarriageError) throw deleteMarriageError;
+        
+        // Check if there are other marriages for these members
+        if (marriageToDelete) {
+          const { data: remainingHusbandMarriages } = await supabaseAdmin
+            .from("family_marriages")
+            .select("wife_id")
+            .eq("husband_id", marriageToDelete.husband_id)
+            .order("marriage_order", { ascending: true })
+            .limit(1);
+          
+          const { data: remainingWifeMarriages } = await supabaseAdmin
+            .from("family_marriages")
+            .select("husband_id")
+            .eq("wife_id", marriageToDelete.wife_id)
+            .limit(1);
+          
+          // Update spouse_id to first remaining marriage or null
+          await supabaseAdmin
+            .from("family_members")
+            .update({ 
+              spouse_id: remainingHusbandMarriages && remainingHusbandMarriages.length > 0 
+                ? remainingHusbandMarriages[0].wife_id 
+                : null 
+            })
+            .eq("id", marriageToDelete.husband_id);
+          
+          await supabaseAdmin
+            .from("family_members")
+            .update({ 
+              spouse_id: remainingWifeMarriages && remainingWifeMarriages.length > 0 
+                ? remainingWifeMarriages[0].husband_id 
+                : null 
+            })
+            .eq("id", marriageToDelete.wife_id);
+        }
+        
+        result = { success: true };
+        console.log("Deleted marriage:", marriageId);
         break;
 
       default:
