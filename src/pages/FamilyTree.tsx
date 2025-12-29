@@ -50,7 +50,7 @@ const FamilyTree = () => {
       const token = appSession?.token || supabaseSession?.access_token;
       
       const response = await fetch(`${SUPABASE_URL}/functions/v1/get-family-members`, {
-        method: "GET",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { "Authorization": `Bearer ${token}` } : {}),

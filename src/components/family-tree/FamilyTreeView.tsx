@@ -423,14 +423,6 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
       }
     }
     
-    // Check if husband is deceased (for widow status)
-    const isWidow = (spouse: FamilyMember) => {
-      if (primaryMember.gender === 'male' && primaryMember.is_alive === false) {
-        return true;
-      }
-      return false;
-    };
-    
     return (
       <div key={primaryMember.id} className="flex flex-col items-center gap-3">
         {/* Couple display with multiple spouses support */}
@@ -449,7 +441,6 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
                     member={spouse} 
                     isSpouse 
                     wifeOrder={hasMultipleSpouses ? order : undefined}
-                    isWidow={isWidow(spouse)}
                   />
                 </div>
               ))}
