@@ -317,6 +317,69 @@ export type Database = {
         }
         Relationships: []
       }
+      homepage_features: {
+        Row: {
+          created_at: string
+          description: string
+          display_order: number
+          href: string
+          icon: string
+          id: string
+          is_visible: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          display_order?: number
+          href?: string
+          icon?: string
+          id?: string
+          is_visible?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          display_order?: number
+          href?: string
+          icon?: string
+          id?: string
+          is_visible?: boolean
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      homepage_quotes: {
+        Row: {
+          author: string
+          created_at: string
+          id: string
+          is_visible: boolean
+          quote: string
+          updated_at: string
+        }
+        Insert: {
+          author?: string
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          quote: string
+          updated_at?: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          quote?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
           created_at: string

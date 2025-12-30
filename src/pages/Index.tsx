@@ -1,44 +1,126 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   TreeDeciduous, 
   Users, 
   BookOpen, 
   Search,
   ArrowRight,
-  Heart
+  Heart,
+  Star,
+  MapPin,
+  Calendar,
+  Phone,
+  Mail,
+  Globe,
+  Settings,
+  FileText,
+  Image,
+  MessageSquare,
+  Bell,
+  Shield,
+  Award,
+  Target,
+  Zap
 } from "lucide-react";
 
-const features = [
-  {
-    icon: TreeDeciduous,
-    title: "Cây Gia Phả",
-    description: "Xem cây gia phả nhiều đời với các mối quan hệ rõ ràng",
-    href: "/cay-gia-pha",
-  },
-  {
-    icon: Users,
-    title: "Thành Viên",
-    description: "Tìm hiểu thông tin về các thành viên trong dòng họ",
-    href: "/cay-gia-pha",
-  },
-  {
-    icon: BookOpen,
-    title: "Bài Viết",
-    description: "Đọc các bài viết về lịch sử và truyền thống dòng họ",
-    href: "/bai-viet",
-  },
-  {
-    icon: Search,
-    title: "Tìm Kiếm",
-    description: "Tìm kiếm thành viên theo tên hoặc quan hệ trong gia phả",
-    href: "/cay-gia-pha",
-  },
-];
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  TreeDeciduous,
+  Users,
+  BookOpen,
+  Search,
+  Heart,
+  Star,
+  MapPin,
+  Calendar,
+  Phone,
+  Mail,
+  Globe,
+  Settings,
+  FileText,
+  Image,
+  MessageSquare,
+  Bell,
+  Shield,
+  Award,
+  Target,
+  Zap,
+};
+
+interface HomepageFeature {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  href: string;
+}
+
+interface HomepageQuote {
+  id: string;
+  quote: string;
+  author: string;
+}
 
 const Index = () => {
+  const [features, setFeatures] = useState<HomepageFeature[]>([]);
+  const [quotes, setQuotes] = useState<HomepageQuote[]>([]);
+  const [currentQuote, setCurrentQuote] = useState<HomepageQuote | null>(null);
+  const [fadeIn, setFadeIn] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const [featuresRes, quotesRes] = await Promise.all([
+        supabase
+          .from('homepage_features')
+          .select('id, icon, title, description, href')
+          .eq('is_visible', true)
+          .order('display_order'),
+        supabase
+          .from('homepage_quotes')
+          .select('id, quote, author')
+          .eq('is_visible', true)
+      ]);
+
+      if (featuresRes.data) setFeatures(featuresRes.data);
+      if (quotesRes.data) {
+        setQuotes(quotesRes.data);
+        if (quotesRes.data.length > 0) {
+          setCurrentQuote(quotesRes.data[Math.floor(Math.random() * quotesRes.data.length)]);
+        }
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Rotate quotes every 5 seconds
+  useEffect(() => {
+    if (quotes.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setFadeIn(false);
+      
+      setTimeout(() => {
+        setCurrentQuote(prev => {
+          const availableQuotes = quotes.filter(q => q.id !== prev?.id);
+          if (availableQuotes.length === 0) return prev;
+          return availableQuotes[Math.floor(Math.random() * availableQuotes.length)];
+        });
+        setFadeIn(true);
+      }, 300);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [quotes]);
+
+  const getIcon = (iconName: string) => {
+    return ICON_MAP[iconName] || TreeDeciduous;
+  };
+
   return (
     <MainLayout>
       {/* Hero Section */}
@@ -106,41 +188,56 @@ const Index = () => {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {features.map((feature, index) => (
-              <Link key={feature.title} to={feature.href}>
-                <Card className="group h-full transition-all duration-300 hover:shadow-elegant hover:-translate-y-1">
-                  <CardContent className="flex flex-col items-center p-6 text-center">
-                    <div className="mb-4 rounded-full bg-primary/10 p-4 transition-colors group-hover:bg-primary/20">
-                      <feature.icon className="h-8 w-8 text-primary" />
-                    </div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold">
-                      {feature.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {feature.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            {features.map((feature) => {
+              const IconComponent = getIcon(feature.icon);
+              return (
+                <Link key={feature.id} to={feature.href}>
+                  <Card className="group h-full transition-all duration-300 hover:shadow-elegant hover:-translate-y-1">
+                    <CardContent className="flex flex-col items-center p-6 text-center">
+                      <div className="mb-4 rounded-full bg-primary/10 p-4 transition-colors group-hover:bg-primary/20">
+                        <IconComponent className="h-8 w-8 text-primary" />
+                      </div>
+                      <h3 className="mb-2 font-serif text-lg font-semibold">
+                        {feature.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {feature.description}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* Quote Section */}
-      <section className="bg-secondary py-16 md:py-24">
-        <div className="container">
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-6 inline-block rounded-full bg-primary/10 p-4">
-              <BookOpen className="h-8 w-8 text-primary" />
+      {currentQuote && (
+        <section className="bg-secondary py-16 md:py-24">
+          <div className="container">
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="mb-6 inline-block rounded-full bg-primary/10 p-4">
+                <BookOpen className="h-8 w-8 text-primary" />
+              </div>
+              <blockquote 
+                className={`mb-6 font-serif text-2xl font-medium italic text-foreground md:text-3xl transition-opacity duration-300 ${
+                  fadeIn ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                "{currentQuote.quote}"
+              </blockquote>
+              <p 
+                className={`text-muted-foreground transition-opacity duration-300 ${
+                  fadeIn ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                — {currentQuote.author} —
+              </p>
             </div>
-            <blockquote className="mb-6 font-serif text-2xl font-medium italic text-foreground md:text-3xl">
-              "Cây có cội, nước có nguồn. Con người có tổ tiên, không ai tự nhiên mà có."
-            </blockquote>
-            <p className="text-muted-foreground">— Tục ngữ Việt Nam —</p>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-16 md:py-24">
