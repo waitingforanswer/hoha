@@ -353,6 +353,48 @@ export type Database = {
         }
         Relationships: []
       }
+      homepage_hero: {
+        Row: {
+          button1_href: string
+          button1_text: string
+          button2_href: string
+          button2_text: string
+          created_at: string
+          description: string
+          id: string
+          tagline: string
+          title_part1: string
+          title_part2: string
+          updated_at: string
+        }
+        Insert: {
+          button1_href?: string
+          button1_text?: string
+          button2_href?: string
+          button2_text?: string
+          created_at?: string
+          description?: string
+          id?: string
+          tagline?: string
+          title_part1?: string
+          title_part2?: string
+          updated_at?: string
+        }
+        Update: {
+          button1_href?: string
+          button1_text?: string
+          button2_href?: string
+          button2_text?: string
+          created_at?: string
+          description?: string
+          id?: string
+          tagline?: string
+          title_part1?: string
+          title_part2?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       homepage_quotes: {
         Row: {
           author: string

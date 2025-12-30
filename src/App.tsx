@@ -20,6 +20,7 @@ import AdminSettings from "./pages/admin/Settings";
 import MenuManagement from "./pages/admin/MenuManagement";
 import FooterManagement from "./pages/admin/FooterManagement";
 import PagesManagement from "./pages/admin/PagesManagement";
+import HomepageManagement from "./pages/admin/HomepageManagement";
 import AdminHelp from "./pages/admin/Help";
 import NotFound from "./pages/NotFound";
 
@@ -100,6 +101,14 @@ const App = () => (
                   element={
                     <AdminProtectedRoute requireAdmin>
                       <PagesManagement />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/settings/pages/homepage" 
+                  element={
+                    <AdminProtectedRoute requireAdmin>
+                      <HomepageManagement />
                     </AdminProtectedRoute>
                   } 
                 />
