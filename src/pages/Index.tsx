@@ -65,7 +65,19 @@ interface HomepageQuote {
   author: string;
 }
 
+interface HomepageHero {
+  tagline: string;
+  title_part1: string;
+  title_part2: string;
+  description: string;
+  button1_text: string;
+  button1_href: string;
+  button2_text: string;
+  button2_href: string;
+}
+
 const Index = () => {
+  const [hero, setHero] = useState<HomepageHero | null>(null);
   const [features, setFeatures] = useState<HomepageFeature[]>([]);
   const [quotes, setQuotes] = useState<HomepageQuote[]>([]);
   const [currentQuote, setCurrentQuote] = useState<HomepageQuote | null>(null);
@@ -73,7 +85,12 @@ const Index = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [featuresRes, quotesRes] = await Promise.all([
+      const [heroRes, featuresRes, quotesRes] = await Promise.all([
+        supabase
+          .from('homepage_hero')
+          .select('tagline, title_part1, title_part2, description, button1_text, button1_href, button2_text, button2_href')
+          .limit(1)
+          .single(),
         supabase
           .from('homepage_features')
           .select('id, icon, title, description, href')
@@ -85,6 +102,7 @@ const Index = () => {
           .eq('is_visible', true)
       ]);
 
+      if (heroRes.data) setHero(heroRes.data);
       if (featuresRes.data) setFeatures(featuresRes.data);
       if (quotesRes.data) {
         setQuotes(quotesRes.data);
@@ -139,28 +157,27 @@ const Index = () => {
           <div className="mx-auto max-w-3xl text-center">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-primary-foreground/10 px-4 py-2 text-sm backdrop-blur">
               <Heart className="h-4 w-4" />
-              <span>Gìn giữ truyền thống - Kết nối thế hệ</span>
+              <span>{hero?.tagline || 'Gìn giữ truyền thống - Kết nối thế hệ'}</span>
             </div>
             
             <h1 className="animate-fade-in mb-6 font-serif text-4xl font-bold leading-tight md:text-5xl lg:text-6xl">
-              Gia Phả <span className="text-gold">Dòng Họ Hà</span>
+              {hero?.title_part1 || 'Gia Phả'} <span className="text-gold">{hero?.title_part2 || 'Dòng Họ Hà'}</span>
             </h1>
             
             <p className="animate-fade-in animation-delay-150 mb-8 text-lg opacity-90 md:text-xl">
-              Nơi lưu giữ và kết nối các thế hệ trong gia đình, 
-              giúp con cháu nhớ về nguồn cội và truyền thống tốt đẹp của dòng họ.
+              {hero?.description || 'Nơi lưu giữ và kết nối các thế hệ trong gia đình, giúp con cháu nhớ về nguồn cội và truyền thống tốt đẹp của dòng họ.'}
             </p>
             
             <div className="animate-fade-in animation-delay-300 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link to="/cay-gia-pha">
+              <Link to={hero?.button1_href || '/cay-gia-pha'}>
                 <Button size="lg" className="gap-2 bg-gold text-accent-foreground hover:bg-gold/90">
-                  Xem Cây Gia Phả
+                  {hero?.button1_text || 'Xem Cây Gia Phả'}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/gioi-thieu">
+              <Link to={hero?.button2_href || '/gioi-thieu'}>
                 <Button size="lg" variant="outline" className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10">
-                  Tìm Hiểu Thêm
+                  {hero?.button2_text || 'Tìm Hiểu Thêm'}
                 </Button>
               </Link>
             </div>
