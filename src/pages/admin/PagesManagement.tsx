@@ -1,6 +1,6 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, ChevronRight } from "lucide-react";
+import { Home, ChevronRight, Info } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const PAGES = [
@@ -10,9 +10,14 @@ const PAGES = [
     description: 'Quản lý nội dung Hero, Features và Quotes trên trang chủ',
     icon: Home,
     href: '/admin/settings/pages/homepage'
+  },
+  {
+    key: 'about',
+    name: 'Giới thiệu',
+    description: 'Quản lý nội dung trang giới thiệu (Hero, Mục đích, Đóng góp...)',
+    icon: Info,
+    href: '/admin/settings/pages/gioi-thieu'
   }
-  // Future pages can be added here:
-  // { key: 'about', name: 'Giới thiệu', description: '...', icon: Info, href: '/admin/settings/pages/gioi-thieu' }
 ];
 
 const PagesManagement = () => {

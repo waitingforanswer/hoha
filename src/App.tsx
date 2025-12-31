@@ -12,6 +12,7 @@ import { PERMISSIONS } from "@/hooks/usePermissions";
 import Index from "./pages/Index";
 import FamilyTree from "./pages/FamilyTree";
 import MemberDetail from "./pages/MemberDetail";
+import About from "./pages/About";
 import Auth from "./pages/Auth";
 import AdminLogin from "./pages/admin/Login";
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -37,6 +38,7 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/gioi-thieu" element={<About />} />
                 <Route path="/login" element={<Auth />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route
