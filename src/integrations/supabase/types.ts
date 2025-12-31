@@ -14,6 +14,144 @@ export type Database = {
   }
   public: {
     Tables: {
+      about_page_donation: {
+        Row: {
+          account_name: string
+          account_number: string
+          box_title: string
+          created_at: string
+          description: string
+          id: string
+          is_visible: boolean
+          note: string | null
+          qr_code_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string
+          account_number?: string
+          box_title?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_visible?: boolean
+          note?: string | null
+          qr_code_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          box_title?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_visible?: boolean
+          note?: string | null
+          qr_code_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      about_page_hero: {
+        Row: {
+          background_image: string | null
+          created_at: string
+          id: string
+          subtitle: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          background_image?: string | null
+          created_at?: string
+          id?: string
+          subtitle?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          background_image?: string | null
+          created_at?: string
+          id?: string
+          subtitle?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      about_page_list_items: {
+        Row: {
+          created_at: string
+          description: string
+          display_order: number
+          icon: string
+          id: string
+          is_visible: boolean
+          section_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          display_order?: number
+          icon?: string
+          id?: string
+          is_visible?: boolean
+          section_type: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          display_order?: number
+          icon?: string
+          id?: string
+          is_visible?: boolean
+          section_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      about_page_sections: {
+        Row: {
+          content: string
+          created_at: string
+          display_order: number
+          id: string
+          is_visible: boolean
+          section_key: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          section_key: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          section_key?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_user_roles: {
         Row: {
           app_user_id: string
