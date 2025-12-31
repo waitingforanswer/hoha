@@ -22,6 +22,7 @@ import MenuManagement from "./pages/admin/MenuManagement";
 import FooterManagement from "./pages/admin/FooterManagement";
 import PagesManagement from "./pages/admin/PagesManagement";
 import HomepageManagement from "./pages/admin/HomepageManagement";
+import AboutManagement from "./pages/admin/AboutManagement";
 import AdminHelp from "./pages/admin/Help";
 import NotFound from "./pages/NotFound";
 
@@ -111,6 +112,14 @@ const App = () => (
                   element={
                     <AdminProtectedRoute requireAdmin>
                       <HomepageManagement />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/settings/pages/gioi-thieu" 
+                  element={
+                    <AdminProtectedRoute requireAdmin>
+                      <AboutManagement />
                     </AdminProtectedRoute>
                   } 
                 />
