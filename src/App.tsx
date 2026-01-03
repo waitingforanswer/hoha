@@ -24,6 +24,7 @@ import PagesManagement from "./pages/admin/PagesManagement";
 import HomepageManagement from "./pages/admin/HomepageManagement";
 import AboutManagement from "./pages/admin/AboutManagement";
 import AdminHelp from "./pages/admin/Help";
+import FeedbackManagement from "./pages/admin/FeedbackManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -128,6 +129,14 @@ const App = () => (
                   element={
                     <AdminProtectedRoute>
                       <AdminHelp />
+                    </AdminProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/gopy" 
+                  element={
+                    <AdminProtectedRoute requireAdmin>
+                      <FeedbackManagement />
                     </AdminProtectedRoute>
                   } 
                 />

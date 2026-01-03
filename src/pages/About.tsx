@@ -127,12 +127,23 @@ const About = () => {
 
     setSubmitting(true);
     
-    // For now, just show success toast - actual submission can be implemented later
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast.success("Cảm ơn bạn đã gửi góp ý! Chúng tôi sẽ xem xét và phản hồi sớm nhất có thể.");
-    setFormData({ name: "", phone: "", message: "" });
-    setSubmitting(false);
+    try {
+      const { error } = await supabase.from("feedbacks").insert({
+        name: formData.name.trim(),
+        phone: formData.phone.trim() || null,
+        message: formData.message.trim(),
+      });
+
+      if (error) throw error;
+
+      toast.success("Cảm ơn bạn đã gửi góp ý! Chúng tôi sẽ xem xét và phản hồi sớm nhất có thể.");
+      setFormData({ name: "", phone: "", message: "" });
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      toast.error("Không thể gửi góp ý. Vui lòng thử lại sau.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {

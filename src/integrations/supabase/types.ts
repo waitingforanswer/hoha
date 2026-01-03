@@ -422,6 +422,42 @@ export type Database = {
           },
         ]
       }
+      feedbacks: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          email: string | null
+          id: string
+          message: string
+          name: string
+          phone: string | null
+          status: Database["public"]["Enums"]["feedback_status"]
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message: string
+          name: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string
+          name?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       footer_settings: {
         Row: {
           content: Json
@@ -834,6 +870,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "sub_admin"
+      feedback_status: "new" | "processing" | "done"
       user_status: "PENDING" | "ACTIVE" | "INACTIVE"
     }
     CompositeTypes: {
@@ -963,6 +1000,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "sub_admin"],
+      feedback_status: ["new", "processing", "done"],
       user_status: ["PENDING", "ACTIVE", "INACTIVE"],
     },
   },

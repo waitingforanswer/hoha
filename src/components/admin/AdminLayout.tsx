@@ -16,7 +16,8 @@ import {
   Footprints,
   File,
   UserCog,
-  HelpCircle
+  HelpCircle,
+  MessageCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -91,6 +92,11 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   // Add Bài viết menu only if admin or has MANAGE_POSTS permission
   if (isAdmin || hasPermission('MANAGE_POSTS')) {
     mainMenuItems.push({ icon: FileText, label: "Bài viết", path: "/admin/posts" });
+  }
+
+  // Add Góp ý menu for admin
+  if (isAdmin) {
+    mainMenuItems.push({ icon: MessageCircle, label: "Góp ý", path: "/admin/gopy" });
   }
 
   // Add Help menu for everyone
