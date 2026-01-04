@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { FamilyTreeNode } from "./FamilyTreeNode";
-import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move, Users, Layers } from "lucide-react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -186,6 +187,16 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
   const fullscreenRef = useRef<HTMLDivElement>(null);
   
   const { rootMembers, memberMap, getChildrenForCouple, getSpouses, marriagesMap } = buildFamilyTree(members, marriages);
+  
+  // Calculate stats
+  const stats = useMemo(() => {
+    const totalMembers = members.length;
+    const generations = new Set(members.map(m => m.generation));
+    return {
+      totalMembers,
+      totalGenerations: generations.size
+    };
+  }, [members]);
   
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.2, 3));
@@ -642,6 +653,26 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
           <span className="sm:hidden">Chạm để kéo | Chụm để zoom</span>
         </div>
       </div>
+
+      {/* Stats floating box */}
+      <div className={cn(
+        "bg-background/95 backdrop-blur-sm border rounded-lg shadow-lg px-4 py-2 pointer-events-none",
+        isFullscreen ? "absolute top-4 right-4 z-10" : "absolute top-0 right-0 z-10"
+      )}>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1.5">
+            <Users className="h-4 w-4 text-primary" />
+            <span className="text-muted-foreground">Thành viên:</span>
+            <span className="font-semibold">{stats.totalMembers}</span>
+          </div>
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center gap-1.5">
+            <Layers className="h-4 w-4 text-primary" />
+            <span className="text-muted-foreground">Số đời:</span>
+            <span className="font-semibold">{stats.totalGenerations}</span>
+          </div>
+        </div>
+      </div>
       
       {/* Tree container */}
       <div 
@@ -725,7 +756,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
   }
   
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
       {treeContent}
     </div>
   );
