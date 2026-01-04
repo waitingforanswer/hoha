@@ -4,6 +4,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import MemberForm from "@/components/admin/MemberForm";
 import MemberQRCode from "@/components/admin/MemberQRCode";
+import ExcelImport from "@/components/admin/ExcelImport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,7 +35,7 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Pencil, Trash2, QrCode, User, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, QrCode, User, ArrowUp, ArrowDown, ArrowUpDown, Upload } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { format } from "date-fns";
 
@@ -52,6 +53,7 @@ const AdminMembers = () => {
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null);
@@ -59,6 +61,8 @@ const AdminMembers = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
+  
+  const token = supabaseSession?.access_token || appSession?.token;
 
   const fetchMembers = async () => {
     setLoading(true);
@@ -291,10 +295,16 @@ const AdminMembers = () => {
               {sortedAndFilteredMembers.length} thành viên {search && `(tìm thấy từ ${members.length} thành viên)`}
             </p>
           </div>
-          <Button onClick={handleAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            Thêm thành viên
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Excel
+            </Button>
+            <Button onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              Thêm thành viên
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
@@ -545,6 +555,14 @@ const AdminMembers = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Excel Import Dialog */}
+      <ExcelImport
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={fetchMembers}
+        token={token}
+      />
     </AdminLayout>
   );
 };
