@@ -14,6 +14,8 @@ import FamilyTree from "./pages/FamilyTree";
 import MemberDetail from "./pages/MemberDetail";
 import About from "./pages/About";
 import Auth from "./pages/Auth";
+import Posts from "./pages/Posts";
+import PostDetail from "./pages/PostDetail";
 import AdminLogin from "./pages/admin/Login";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminMembers from "./pages/admin/Members";
@@ -41,6 +43,8 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/gioi-thieu" element={<About />} />
+                <Route path="/bai-viet" element={<Posts />} />
+                <Route path="/bai-viet/:id" element={<PostDetail />} />
                 <Route path="/login" element={<Auth />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route
