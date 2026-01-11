@@ -656,6 +656,7 @@ export type Database = {
       posts: {
         Row: {
           author_id: string | null
+          author_name: string | null
           category_id: string | null
           content: string | null
           created_at: string
@@ -667,9 +668,11 @@ export type Database = {
           slug: string
           title: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           author_id?: string | null
+          author_name?: string | null
           category_id?: string | null
           content?: string | null
           created_at?: string
@@ -681,9 +684,11 @@ export type Database = {
           slug: string
           title: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           author_id?: string | null
+          author_name?: string | null
           category_id?: string | null
           content?: string | null
           created_at?: string
@@ -695,6 +700,7 @@ export type Database = {
           slug?: string
           title?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {

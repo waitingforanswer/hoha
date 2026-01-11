@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Loader2, Calendar } from "lucide-react";
+import { format } from "date-fns";
 
 interface Post {
   id: string;
@@ -26,6 +28,8 @@ interface Post {
   created_at: string;
   updated_at: string;
   category_id: string | null;
+  author_name: string | null;
+  updated_by: string | null;
 }
 
 interface PostFormProps {
@@ -41,16 +45,30 @@ export default function PostForm({
   post,
   onSuccess,
 }: PostFormProps) {
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [excerpt, setExcerpt] = useState("");
   const [content, setContent] = useState("");
   const [featuredImage, setFeaturedImage] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(false);
+  const [publishedAt, setPublishedAt] = useState("");
+  const [authorName, setAuthorName] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Get current user's display name
+  const getCurrentUserName = () => {
+    if (user?.user_metadata?.full_name) {
+      return user.user_metadata.full_name;
+    }
+    if (user?.email) {
+      return user.email.split("@")[0];
+    }
+    return "Admin";
+  };
 
   useEffect(() => {
     if (post) {
@@ -60,15 +78,22 @@ export default function PostForm({
       setContent(post.content || "");
       setFeaturedImage(post.featured_image);
       setIsPublished(post.is_published || false);
+      setPublishedAt(post.published_at ? format(new Date(post.published_at), "yyyy-MM-dd'T'HH:mm") : "");
+      setAuthorName(post.author_name || "");
     } else {
+      // Reset form for new post
       setTitle("");
       setSlug("");
       setExcerpt("");
       setContent("");
       setFeaturedImage(null);
       setIsPublished(false);
+      // Default published_at to now
+      setPublishedAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+      // Default author to current user
+      setAuthorName(getCurrentUserName());
     }
-  }, [post, open]);
+  }, [post, open, user]);
 
   const generateSlug = (text: string) => {
     return text
@@ -180,6 +205,8 @@ export default function PostForm({
 
     setLoading(true);
     try {
+      const currentUserName = getCurrentUserName();
+      
       const postData = {
         title: title.trim(),
         slug: slug.trim() || generateSlug(title),
@@ -187,7 +214,9 @@ export default function PostForm({
         content: content.trim() || null,
         featured_image: featuredImage,
         is_published: isPublished,
-        published_at: isPublished ? new Date().toISOString() : null,
+        published_at: publishedAt ? new Date(publishedAt).toISOString() : null,
+        author_name: authorName.trim() || currentUserName,
+        updated_by: currentUserName,
       };
 
       if (post) {
@@ -328,6 +357,38 @@ export default function PostForm({
             />
           </div>
 
+          {/* Author Name */}
+          <div className="space-y-2">
+            <Label htmlFor="authorName">Người viết bài</Label>
+            <Input
+              id="authorName"
+              value={authorName}
+              onChange={(e) => setAuthorName(e.target.value)}
+              placeholder="Tên người viết bài..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Mặc định là tên tài khoản đang đăng nhập, có thể chỉnh sửa thủ công
+            </p>
+          </div>
+
+          {/* Published At */}
+          <div className="space-y-2">
+            <Label htmlFor="publishedAt">Ngày xuất bản</Label>
+            <div className="relative">
+              <Input
+                id="publishedAt"
+                type="datetime-local"
+                value={publishedAt}
+                onChange={(e) => setPublishedAt(e.target.value)}
+                className="pl-10"
+              />
+              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ngày này sẽ hiển thị trên timeline công khai
+            </p>
+          </div>
+
           {/* Publish Toggle */}
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
@@ -342,6 +403,29 @@ export default function PostForm({
               onCheckedChange={setIsPublished}
             />
           </div>
+
+          {/* Post metadata (read-only info) */}
+          {post && (
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Thông tin bài viết</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Ngày tạo:</span>{" "}
+                  {format(new Date(post.created_at), "HH:mm dd/MM/yyyy")}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Cập nhật:</span>{" "}
+                  {format(new Date(post.updated_at), "HH:mm dd/MM/yyyy")}
+                </div>
+                {post.updated_by && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Người chỉnh sửa:</span>{" "}
+                    {post.updated_by}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t">

@@ -41,6 +41,8 @@ interface Post {
   created_at: string;
   updated_at: string;
   category_id: string | null;
+  author_name: string | null;
+  updated_by: string | null;
 }
 
 type SortField = "title" | "is_published" | "published_at" | "updated_at";
