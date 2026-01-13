@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import {
   Dialog,
   DialogContent,
@@ -13,8 +14,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, Image as ImageIcon, Loader2, Calendar } from "lucide-react";
+import { X, Image as ImageIcon, Loader2, Calendar } from "lucide-react";
 import { format } from "date-fns";
+import PostImageGallery from "./PostImageGallery";
 
 interface Post {
   id: string;
@@ -30,6 +32,15 @@ interface Post {
   category_id: string | null;
   author_name: string | null;
   updated_by: string | null;
+}
+
+interface PostImage {
+  id: string;
+  post_id: string;
+  image_url: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
 }
 
 interface PostFormProps {
@@ -55,9 +66,20 @@ export default function PostForm({
   const [publishedAt, setPublishedAt] = useState("");
   const [authorName, setAuthorName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Gallery state
+  const [galleryImages, setGalleryImages] = useState<PostImage[]>([]);
+  const [tempGalleryImages, setTempGalleryImages] = useState<{ url: string; caption: string }[]>([]);
+
+  // Image upload hook for featured image
+  const { uploading, uploadImage, deleteImage } = useImageUpload({
+    bucket: "post-images",
+    folder: "featured",
+    maxSizeMB: 2,
+    maxWidthOrHeight: 1920,
+  });
 
   // Get current user's display name
   const getCurrentUserName = () => {
@@ -70,6 +92,22 @@ export default function PostForm({
     return "Admin";
   };
 
+  // Fetch gallery images when editing a post
+  const fetchGalleryImages = async (postId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("post_images")
+        .select("*")
+        .eq("post_id", postId)
+        .order("sort_order", { ascending: true });
+
+      if (error) throw error;
+      setGalleryImages(data || []);
+    } catch (error) {
+      console.error("Error fetching gallery images:", error);
+    }
+  };
+
   useEffect(() => {
     if (post) {
       setTitle(post.title);
@@ -80,6 +118,7 @@ export default function PostForm({
       setIsPublished(post.is_published || false);
       setPublishedAt(post.published_at ? format(new Date(post.published_at), "yyyy-MM-dd'T'HH:mm") : "");
       setAuthorName(post.author_name || "");
+      fetchGalleryImages(post.id);
     } else {
       // Reset form for new post
       setTitle("");
@@ -92,6 +131,8 @@ export default function PostForm({
       setPublishedAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
       // Default author to current user
       setAuthorName(getCurrentUserName());
+      setGalleryImages([]);
+      setTempGalleryImages([]);
     }
   }, [post, open, user]);
 
@@ -119,74 +160,20 @@ export default function PostForm({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: "Lỗi",
-        description: "Vui lòng chọn file hình ảnh",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Lỗi",
-        description: "Kích thước file không được vượt quá 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUploading(true);
-    try {
-      // Generate unique filename
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `posts/${fileName}`;
-
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from("post-images")
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data } = supabase.storage
-        .from("post-images")
-        .getPublicUrl(filePath);
-
-      setFeaturedImage(data.publicUrl);
+    const result = await uploadImage(file);
+    if (result) {
+      setFeaturedImage(result.url);
       toast({ title: "Đã tải ảnh lên!" });
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      toast({
-        title: "Lỗi",
-        description: error.message || "Không thể tải ảnh lên",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
   const removeImage = async () => {
     if (featuredImage) {
-      try {
-        // Extract file path from URL
-        const url = new URL(featuredImage);
-        const pathMatch = url.pathname.match(/\/post-images\/(.+)$/);
-        if (pathMatch) {
-          await supabase.storage.from("post-images").remove([pathMatch[1]]);
-        }
-      } catch (error) {
-        console.error("Error removing old image:", error);
-      }
+      await deleteImage(featuredImage);
     }
     setFeaturedImage(null);
   };
@@ -230,9 +217,32 @@ export default function PostForm({
         toast({ title: "Đã cập nhật bài viết!" });
       } else {
         // Create new post
-        const { error } = await supabase.from("posts").insert([postData]);
+        const { data: newPost, error } = await supabase
+          .from("posts")
+          .insert([postData])
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Save temp gallery images to database
+        if (newPost && tempGalleryImages.length > 0) {
+          const galleryData = tempGalleryImages.map((img, index) => ({
+            post_id: newPost.id,
+            image_url: img.url,
+            caption: img.caption || null,
+            sort_order: index,
+          }));
+
+          const { error: galleryError } = await supabase
+            .from("post_images")
+            .insert(galleryData);
+
+          if (galleryError) {
+            console.error("Error saving gallery images:", galleryError);
+          }
+        }
+
         toast({ title: "Đã tạo bài viết mới!" });
       }
 
@@ -293,7 +303,7 @@ export default function PostForm({
                       Click để tải ảnh lên
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Tối đa 5MB
+                      Hỗ trợ JPEG, PNG, HEIC • Tối đa 20MB • Tự động nén
                     </p>
                   </>
                 )}
@@ -302,11 +312,20 @@ export default function PostForm({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               onChange={handleImageUpload}
               className="hidden"
             />
           </div>
+
+          {/* Image Gallery */}
+          <PostImageGallery
+            postId={post?.id || null}
+            images={galleryImages}
+            onImagesChange={setGalleryImages}
+            tempImages={tempGalleryImages}
+            onTempImagesChange={setTempGalleryImages}
+          />
 
           {/* Title */}
           <div className="space-y-2">
