@@ -8,6 +8,7 @@ import { vi } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import PostCarousel from "@/components/posts/PostCarousel";
 
 interface Post {
   id: string;
@@ -17,11 +18,20 @@ interface Post {
   featured_image: string | null;
   published_at: string | null;
   created_at: string;
+  author_name: string | null;
+}
+
+interface PostImage {
+  id: string;
+  image_url: string;
+  caption: string | null;
+  sort_order: number;
 }
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
   const [post, setPost] = useState<Post | null>(null);
+  const [galleryImages, setGalleryImages] = useState<PostImage[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,15 +42,24 @@ export default function PostDetail() {
 
   const fetchPost = async (postId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("posts")
-        .select("*")
-        .eq("id", postId)
-        .eq("is_published", true)
-        .single();
+      // Fetch post and gallery images in parallel
+      const [postResult, imagesResult] = await Promise.all([
+        supabase
+          .from("posts")
+          .select("*")
+          .eq("id", postId)
+          .eq("is_published", true)
+          .single(),
+        supabase
+          .from("post_images")
+          .select("*")
+          .eq("post_id", postId)
+          .order("sort_order", { ascending: true }),
+      ]);
 
-      if (error) throw error;
-      setPost(data);
+      if (postResult.error) throw postResult.error;
+      setPost(postResult.data);
+      setGalleryImages(imagesResult.data || []);
     } catch (error) {
       console.error("Error fetching post:", error);
     } finally {
@@ -128,8 +147,13 @@ export default function PostDetail() {
 
       <article className="pb-12 md:pb-20">
         <div className="container px-4 md:px-6 max-w-3xl mx-auto">
-          {/* Featured Image */}
-          {post.featured_image && (
+          {/* Image Gallery Carousel - shown if multiple images */}
+          {galleryImages.length > 0 && (
+            <PostCarousel images={galleryImages} className="mb-6 md:mb-8" />
+          )}
+
+          {/* Featured Image - shown only if no gallery images */}
+          {galleryImages.length === 0 && post.featured_image && (
             <div className="aspect-[16/10] md:aspect-video rounded-xl md:rounded-2xl overflow-hidden mb-6 md:mb-8 shadow-card">
               <img
                 src={post.featured_image}
@@ -158,6 +182,13 @@ export default function PostDetail() {
                   {estimateReadTime(post.content)} phút đọc
                 </span>
               </div>
+              {post.author_name && (
+                <div className="flex items-center gap-2">
+                  <span className="text-base">
+                    Tác giả: <span className="font-medium">{post.author_name}</span>
+                  </span>
+                </div>
+              )}
             </div>
           </header>
 
