@@ -12,11 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import { vi } from "date-fns/locale";
 import { 
   Home, Plus, Pencil, Trash2, GripVertical, Quote, Sparkles, Save,
   TreeDeciduous, Users, BookOpen, Search, Heart, Star, 
   MapPin, Calendar, Phone, Mail, Globe, Settings, FileText,
-  Image, MessageSquare, Bell, Shield, Award, Target, Zap, ArrowLeft
+  Image, MessageSquare, Bell, Shield, Award, Target, Zap, ArrowLeft,
+  CalendarDays, Repeat
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -77,6 +80,16 @@ interface HomepageQuote {
   is_visible: boolean;
 }
 
+interface FamilyEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  is_recurring: boolean;
+  is_visible: boolean;
+  display_order: number;
+}
+
 const HomepageManagement = () => {
   const [hero, setHero] = useState<HomepageHero | null>(null);
   const [heroForm, setHeroForm] = useState({
@@ -91,6 +104,7 @@ const HomepageManagement = () => {
   });
   const [features, setFeatures] = useState<HomepageFeature[]>([]);
   const [quotes, setQuotes] = useState<HomepageQuote[]>([]);
+  const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -114,9 +128,20 @@ const HomepageManagement = () => {
     is_visible: true
   });
 
+  // Event dialog
+  const [eventDialogOpen, setEventDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<FamilyEvent | null>(null);
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    description: '',
+    event_date: format(new Date(), 'yyyy-MM-dd'),
+    is_recurring: true,
+    is_visible: true
+  });
+
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'feature' | 'quote', id: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'feature' | 'quote' | 'event', id: string } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -125,10 +150,11 @@ const HomepageManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [heroRes, featuresRes, quotesRes] = await Promise.all([
+      const [heroRes, featuresRes, quotesRes, eventsRes] = await Promise.all([
         supabase.from('homepage_hero').select('*').limit(1).single(),
         supabase.from('homepage_features').select('*').order('display_order'),
-        supabase.from('homepage_quotes').select('*').order('created_at')
+        supabase.from('homepage_quotes').select('*').order('created_at'),
+        supabase.from('family_events').select('*').order('event_date')
       ]);
 
       if (heroRes.data) {
@@ -147,9 +173,11 @@ const HomepageManagement = () => {
 
       if (featuresRes.error) throw featuresRes.error;
       if (quotesRes.error) throw quotesRes.error;
+      if (eventsRes.error) throw eventsRes.error;
 
       setFeatures(featuresRes.data || []);
       setQuotes(quotesRes.data || []);
+      setEvents(eventsRes.data || []);
     } catch (error: any) {
       toast.error('Không thể tải dữ liệu: ' + error.message);
     } finally {
@@ -317,8 +345,80 @@ const HomepageManagement = () => {
     }
   };
 
+  // Event handlers
+  const openEventDialog = (event?: FamilyEvent) => {
+    if (event) {
+      setEditingEvent(event);
+      setEventForm({
+        title: event.title,
+        description: event.description || '',
+        event_date: event.event_date,
+        is_recurring: event.is_recurring,
+        is_visible: event.is_visible
+      });
+    } else {
+      setEditingEvent(null);
+      setEventForm({
+        title: '',
+        description: '',
+        event_date: format(new Date(), 'yyyy-MM-dd'),
+        is_recurring: true,
+        is_visible: true
+      });
+    }
+    setEventDialogOpen(true);
+  };
+
+  const saveEvent = async () => {
+    if (!eventForm.title.trim()) {
+      toast.error('Vui lòng nhập tên sự kiện');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingEvent) {
+        const { error } = await supabase
+          .from('family_events')
+          .update({
+            title: eventForm.title,
+            description: eventForm.description || null,
+            event_date: eventForm.event_date,
+            is_recurring: eventForm.is_recurring,
+            is_visible: eventForm.is_visible
+          })
+          .eq('id', editingEvent.id);
+        
+        if (error) throw error;
+        toast.success('Đã cập nhật sự kiện');
+      } else {
+        const maxOrder = Math.max(...events.map(e => e.display_order), 0);
+        const { error } = await supabase
+          .from('family_events')
+          .insert({
+            title: eventForm.title,
+            description: eventForm.description || null,
+            event_date: eventForm.event_date,
+            is_recurring: eventForm.is_recurring,
+            is_visible: eventForm.is_visible,
+            display_order: maxOrder + 1
+          });
+        
+        if (error) throw error;
+        toast.success('Đã thêm sự kiện mới');
+      }
+      
+      setEventDialogOpen(false);
+      fetchData();
+    } catch (error: any) {
+      toast.error('Lỗi: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Delete handler
-  const confirmDelete = (type: 'feature' | 'quote', id: string) => {
+  const confirmDelete = (type: 'feature' | 'quote' | 'event', id: string) => {
     setDeleteTarget({ type, id });
     setDeleteDialogOpen(true);
   };
@@ -328,8 +428,17 @@ const HomepageManagement = () => {
 
     setSaving(true);
     try {
-      const table = deleteTarget.type === 'feature' ? 'homepage_features' : 'homepage_quotes';
-      const { error } = await supabase.from(table).delete().eq('id', deleteTarget.id);
+      let error;
+      if (deleteTarget.type === 'feature') {
+        const result = await supabase.from('homepage_features').delete().eq('id', deleteTarget.id);
+        error = result.error;
+      } else if (deleteTarget.type === 'quote') {
+        const result = await supabase.from('homepage_quotes').delete().eq('id', deleteTarget.id);
+        error = result.error;
+      } else if (deleteTarget.type === 'event') {
+        const result = await supabase.from('family_events').delete().eq('id', deleteTarget.id);
+        error = result.error;
+      }
       
       if (error) throw error;
       toast.success('Đã xóa thành công');
@@ -360,7 +469,7 @@ const HomepageManagement = () => {
         </div>
 
         <Tabs defaultValue="hero" className="space-y-4">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="hero" className="gap-2">
               <Sparkles className="h-4 w-4" />
               Hero Section
@@ -368,6 +477,10 @@ const HomepageManagement = () => {
             <TabsTrigger value="features" className="gap-2">
               <Home className="h-4 w-4" />
               Khám phá nguồn cội
+            </TabsTrigger>
+            <TabsTrigger value="events" className="gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Ngày quan trọng
             </TabsTrigger>
             <TabsTrigger value="quotes" className="gap-2">
               <Quote className="h-4 w-4" />
@@ -580,6 +693,101 @@ const HomepageManagement = () => {
                           </TableRow>
                         );
                       })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Events Tab */}
+          <TabsContent value="events">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Các ngày quan trọng</CardTitle>
+                    <CardDescription>
+                      Ngày giỗ, lễ hội, họp mặt dòng họ hiển thị trên timeline trang chủ.
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => openEventDialog()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Thêm sự kiện
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="py-8 text-center text-muted-foreground">Đang tải...</div>
+                ) : events.length === 0 ? (
+                  <div className="py-8 text-center text-muted-foreground">
+                    Chưa có sự kiện nào. Nhấn "Thêm sự kiện" để bắt đầu.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Ngày</TableHead>
+                        <TableHead>Tên sự kiện</TableHead>
+                        <TableHead>Mô tả</TableHead>
+                        <TableHead>Lặp lại</TableHead>
+                        <TableHead>Hiển thị</TableHead>
+                        <TableHead className="w-24">Thao tác</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {events.map((event) => (
+                        <TableRow key={event.id}>
+                          <TableCell className="whitespace-nowrap">
+                            {format(parseISO(event.event_date), 'dd/MM/yyyy', { locale: vi })}
+                          </TableCell>
+                          <TableCell className="font-medium">{event.title}</TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                            {event.description || '—'}
+                          </TableCell>
+                          <TableCell>
+                            {event.is_recurring ? (
+                              <div className="flex items-center gap-1 text-primary">
+                                <Repeat className="h-4 w-4" />
+                                <span className="text-sm">Hàng năm</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Một lần</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Switch 
+                              checked={event.is_visible} 
+                              onCheckedChange={async (checked) => {
+                                await supabase
+                                  .from('family_events')
+                                  .update({ is_visible: checked })
+                                  .eq('id', event.id);
+                                fetchData();
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => openEventDialog(event)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => confirmDelete('event', event.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 )}
@@ -800,6 +1008,77 @@ const HomepageManagement = () => {
               Hủy
             </Button>
             <Button onClick={saveQuote} disabled={saving}>
+              {saving ? 'Đang lưu...' : 'Lưu'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Event Dialog */}
+      <Dialog open={eventDialogOpen} onOpenChange={setEventDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingEvent ? 'Chỉnh sửa sự kiện' : 'Thêm sự kiện mới'}
+            </DialogTitle>
+            <DialogDescription>
+              Thêm ngày giỗ, lễ hội hoặc sự kiện quan trọng của dòng họ
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="event-title">Tên sự kiện *</Label>
+              <Input
+                id="event-title"
+                value={eventForm.title}
+                onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                placeholder="VD: Giỗ Cụ Tổ, Họp mặt đầu năm..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="event-date">Ngày diễn ra *</Label>
+              <Input
+                id="event-date"
+                type="date"
+                value={eventForm.event_date}
+                onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="event-description">Mô tả (tùy chọn)</Label>
+              <Textarea
+                id="event-description"
+                value={eventForm.description}
+                onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                placeholder="Mô tả ngắn gọn về sự kiện..."
+                rows={2}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="event-recurring"
+                checked={eventForm.is_recurring}
+                onCheckedChange={(checked) => setEventForm({ ...eventForm, is_recurring: checked })}
+              />
+              <Label htmlFor="event-recurring" className="flex items-center gap-2">
+                <Repeat className="h-4 w-4" />
+                Lặp lại hàng năm (ngày giỗ, lễ cố định)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="event-visible"
+                checked={eventForm.is_visible}
+                onCheckedChange={(checked) => setEventForm({ ...eventForm, is_visible: checked })}
+              />
+              <Label htmlFor="event-visible">Hiển thị trên trang chủ</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEventDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button onClick={saveEvent} disabled={saving}>
               {saving ? 'Đang lưu...' : 'Lưu'}
             </Button>
           </DialogFooter>
