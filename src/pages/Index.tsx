@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import EventTimeline from "@/components/homepage/EventTimeline";
 import { 
   TreeDeciduous, 
   Users, 
@@ -76,16 +77,25 @@ interface HomepageHero {
   button2_href: string;
 }
 
+interface FamilyEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  is_recurring: boolean;
+}
+
 const Index = () => {
   const [hero, setHero] = useState<HomepageHero | null>(null);
   const [features, setFeatures] = useState<HomepageFeature[]>([]);
   const [quotes, setQuotes] = useState<HomepageQuote[]>([]);
+  const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [currentQuote, setCurrentQuote] = useState<HomepageQuote | null>(null);
   const [fadeIn, setFadeIn] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      const [heroRes, featuresRes, quotesRes] = await Promise.all([
+      const [heroRes, featuresRes, quotesRes, eventsRes] = await Promise.all([
         supabase
           .from('homepage_hero')
           .select('tagline, title_part1, title_part2, description, button1_text, button1_href, button2_text, button2_href')
@@ -99,11 +109,17 @@ const Index = () => {
         supabase
           .from('homepage_quotes')
           .select('id, quote, author')
+          .eq('is_visible', true),
+        supabase
+          .from('family_events')
+          .select('id, title, description, event_date, is_recurring')
           .eq('is_visible', true)
+          .order('event_date')
       ]);
 
       if (heroRes.data) setHero(heroRes.data);
       if (featuresRes.data) setFeatures(featuresRes.data);
+      if (eventsRes.data) setEvents(eventsRes.data);
       if (quotesRes.data) {
         setQuotes(quotesRes.data);
         if (quotesRes.data.length > 0) {
@@ -228,6 +244,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Family Events Timeline */}
+      {events.length > 0 && <EventTimeline events={events} />}
 
       {/* Quote Section */}
       {currentQuote && (

@@ -277,6 +277,42 @@ export type Database = {
         }
         Relationships: []
       }
+      family_events: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          event_date: string
+          id: string
+          is_recurring: boolean
+          is_visible: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          event_date: string
+          id?: string
+          is_recurring?: boolean
+          is_visible?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          event_date?: string
+          id?: string
+          is_recurring?: boolean
+          is_visible?: boolean
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       family_marriages: {
         Row: {
           created_at: string
