@@ -35,6 +35,7 @@ interface FamilyMember {
   gender: string | null;
   is_primary_lineage?: boolean | null;
   lineage_type?: string | null;
+  is_default_view?: boolean | null;
 }
 
 interface FamilyTreeNodeProps {
@@ -121,13 +122,16 @@ export function FamilyTreeNode({ member, isSpouse = false, wifeOrder }: FamilyTr
   
   return (
     <div
+      data-member-id={member.id}
       className={cn(
         "flex flex-col items-center gap-3 p-3 rounded-lg bg-card transition-all hover:shadow-md relative",
         // Fixed width and height for consistent card size
         "w-[140px] h-[180px]",
         // Border styling based on lineage
         getBorderClass(),
-        isDeceased && "opacity-70"
+        isDeceased && "opacity-70",
+        // Highlight default view member
+        member.is_default_view && "ring-2 ring-primary ring-offset-2"
       )}
     >
       {/* Gender icon - top right */}

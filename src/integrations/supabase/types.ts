@@ -382,6 +382,7 @@ export type Database = {
           generation: number
           id: string
           is_alive: boolean | null
+          is_default_view: boolean | null
           is_primary_lineage: boolean | null
           lineage_type: string | null
           mother_id: string | null
@@ -404,6 +405,7 @@ export type Database = {
           generation?: number
           id?: string
           is_alive?: boolean | null
+          is_default_view?: boolean | null
           is_primary_lineage?: boolean | null
           lineage_type?: string | null
           mother_id?: string | null
@@ -426,6 +428,7 @@ export type Database = {
           generation?: number
           id?: string
           is_alive?: boolean | null
+          is_default_view?: boolean | null
           is_primary_lineage?: boolean | null
           lineage_type?: string | null
           mother_id?: string | null

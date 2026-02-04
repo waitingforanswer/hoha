@@ -39,6 +39,7 @@ interface FamilyMember {
   spouse_id: string | null;
   is_primary_lineage: boolean | null;
   lineage_type?: string | null;
+  is_default_view?: boolean | null;
 }
 
 interface FamilyMarriage {
@@ -168,13 +169,14 @@ function getWifeLabel(order: number): string {
 
 export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps) {
   const isMobile = useIsMobile();
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.8); // Default to 80% zoom
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [hasInitializedView, setHasInitializedView] = useState(false);
   
   // Touch gesture states
   const [isTouching, setIsTouching] = useState(false);
@@ -187,6 +189,11 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
   const fullscreenRef = useRef<HTMLDivElement>(null);
   
   const { rootMembers, memberMap, getChildrenForCouple, getSpouses, marriagesMap } = buildFamilyTree(members, marriages);
+  
+  // Find default view member
+  const defaultViewMember = useMemo(() => {
+    return members.find(m => m.is_default_view === true);
+  }, [members]);
   
   // Calculate stats
   const stats = useMemo(() => {
@@ -207,14 +214,63 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
   };
   
   const handleResetZoom = () => {
-    setZoom(1);
-    setPosition({ x: 0, y: 0 });
+    setZoom(0.8);
+    // Center on default view member if exists, otherwise center view
+    if (defaultViewMember) {
+      centerOnMember(defaultViewMember.id);
+    } else {
+      centerOnTree();
+    }
   };
+  
+  // Center view on a specific member
+  const centerOnMember = useCallback((memberId: string) => {
+    if (!containerRef.current || !contentRef.current) return;
+    
+    const memberNode = contentRef.current.querySelector(`[data-member-id="${memberId}"]`) as HTMLElement;
+    if (!memberNode) return;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const contentRect = contentRef.current.getBoundingClientRect();
+    const nodeRect = memberNode.getBoundingClientRect();
+    
+    // Calculate the node's position relative to the content (accounting for current zoom)
+    const currentZoom = 0.8;
+    const nodeRelativeX = (nodeRect.left - contentRect.left) / zoom + nodeRect.width / (2 * zoom);
+    const nodeRelativeY = (nodeRect.top - contentRect.top) / zoom + nodeRect.height / (2 * zoom);
+    
+    // Calculate position to center the node in the container
+    const newX = containerRect.width / 2 - nodeRelativeX * currentZoom;
+    const newY = containerRect.height / 2 - nodeRelativeY * currentZoom;
+    
+    setPosition({ x: newX, y: newY });
+  }, [zoom]);
+  
+  // Center on the entire tree
+  const centerOnTree = useCallback(() => {
+    if (!containerRef.current || !contentRef.current) return;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const contentWidth = contentRef.current.scrollWidth * 0.8;
+    const contentHeight = contentRef.current.scrollHeight * 0.8;
+    
+    const newX = (containerRect.width - contentWidth) / 2;
+    const newY = Math.max(0, (containerRect.height - contentHeight) / 2);
+    
+    setPosition({ x: newX, y: newY });
+  }, []);
   
   const toggleFullscreen = () => {
     setIsFullscreen(prev => !prev);
     if (!isFullscreen) {
-      setPosition({ x: 0, y: 0 });
+      // When entering fullscreen, recenter after a short delay
+      setTimeout(() => {
+        if (defaultViewMember) {
+          centerOnMember(defaultViewMember.id);
+        } else {
+          centerOnTree();
+        }
+      }, 100);
     }
   };
   
@@ -379,6 +435,54 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
       clearTimeout(timer);
     };
   }, [members, zoom, isFullscreen]);
+
+  // Initialize view on first load - center on default member or tree center
+  useEffect(() => {
+    if (hasInitializedView) return;
+    if (!containerRef.current || !contentRef.current) return;
+    if (contentSize.width === 0 || contentSize.height === 0) return;
+    
+    // Wait a bit for all nodes to be rendered
+    const timer = setTimeout(() => {
+      if (!containerRef.current || !contentRef.current) return;
+      
+      if (defaultViewMember) {
+        // Find the node for default view member using data attribute
+        const memberNode = contentRef.current.querySelector(`[data-member-id="${defaultViewMember.id}"]`) as HTMLElement;
+        if (memberNode) {
+          const containerRect = containerRef.current.getBoundingClientRect();
+          const nodeRect = memberNode.getBoundingClientRect();
+          const contentRect = contentRef.current.getBoundingClientRect();
+          
+          // Calculate position relative to unscaled content
+          const currentZoom = 0.8;
+          const nodeRelativeX = (nodeRect.left - contentRect.left) / currentZoom + nodeRect.width / (2 * currentZoom);
+          const nodeRelativeY = (nodeRect.top - contentRect.top) / currentZoom + nodeRect.height / (2 * currentZoom);
+          
+          // Calculate new position to center the node
+          const newX = containerRect.width / 2 - nodeRelativeX * currentZoom;
+          const newY = containerRect.height / 2 - nodeRelativeY * currentZoom;
+          
+          setZoom(0.8);
+          setPosition({ x: newX, y: newY });
+          setHasInitializedView(true);
+        }
+      } else {
+        // Center on the tree
+        const containerRect = containerRef.current!.getBoundingClientRect();
+        const contentWidth = contentRef.current!.scrollWidth * 0.8;
+        const contentHeight = contentRef.current!.scrollHeight * 0.8;
+        
+        const newX = (containerRect.width - contentWidth) / 2;
+        const newY = 20; // Small padding from top
+        
+        setPosition({ x: newX, y: newY });
+        setHasInitializedView(true);
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [contentSize, containerSize, defaultViewMember, hasInitializedView]);
 
   // Handle escape key to exit fullscreen
   useEffect(() => {
