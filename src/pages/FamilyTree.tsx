@@ -25,6 +25,7 @@ export interface FamilyMember {
   spouse_id: string | null;
   is_primary_lineage: boolean | null;
   lineage_type?: string | null;
+  is_default_view?: boolean | null;
 }
 
 export interface FamilyMarriage {

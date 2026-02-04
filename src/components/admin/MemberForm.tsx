@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -22,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, RefreshCw } from "lucide-react";
+import { Upload, X, RefreshCw, Eye } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import AvatarCropper from "./AvatarCropper";
 import MarriageManager from "./MarriageManager";
@@ -45,6 +46,7 @@ const memberSchema = z.object({
   father_id: z.string().optional(),
   mother_id: z.string().optional(),
   spouse_id: z.string().optional(),
+  is_default_view: z.boolean().optional(),
 });
 
 type MemberFormData = z.infer<typeof memberSchema>;
@@ -103,12 +105,14 @@ const MemberForm = ({
       father_id: "",
       mother_id: "",
       spouse_id: "",
+      is_default_view: false,
     },
   });
 
   const isAlive = watch("is_alive");
   const lineageType = watch("lineage_type");
   const currentGender = watch("gender");
+  const isDefaultView = watch("is_default_view");
 
   useEffect(() => {
     if (member) {
@@ -135,6 +139,7 @@ const MemberForm = ({
         father_id: member.father_id || "",
         mother_id: member.mother_id || "",
         spouse_id: member.spouse_id || "",
+        is_default_view: (member as any).is_default_view ?? false,
       });
       setAvatarPreview(member.avatar_url);
       setHasExistingAvatar(!!member.avatar_url);
@@ -155,6 +160,7 @@ const MemberForm = ({
         father_id: "",
         mother_id: "",
         spouse_id: "",
+        is_default_view: false,
       });
       setAvatarPreview(null);
       setHasExistingAvatar(false);
@@ -283,6 +289,7 @@ const MemberForm = ({
         father_id: data.father_id || null,
         mother_id: data.mother_id || null,
         spouse_id: data.spouse_id || null,
+        is_default_view: data.is_default_view || false,
       };
 
       if (member) {
@@ -533,6 +540,27 @@ const MemberForm = ({
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Phân loại thành viên trong dòng họ
+                </p>
+              </div>
+
+              {/* Default View setting */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="is_default_view"
+                    checked={isDefaultView}
+                    onCheckedChange={(checked) => setValue("is_default_view", !!checked)}
+                  />
+                  <Label 
+                    htmlFor="is_default_view" 
+                    className="flex items-center gap-2 cursor-pointer font-normal"
+                  >
+                    <Eye className="h-4 w-4 text-primary" />
+                    Đặt làm vị trí mặc định cây gia phả
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Khi truy cập cây gia phả, view sẽ tự động focus vào thành viên này. Chỉ có thể đặt cho 1 thành viên.
                 </p>
               </div>
 
