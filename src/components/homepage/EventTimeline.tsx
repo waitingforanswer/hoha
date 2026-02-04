@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import { format, parseISO, getMonth, getYear, isBefore, isAfter, addYears, startOfYear } from "date-fns";
+import { format, parseISO, getMonth, getYear, isBefore, isAfter, addYears, isSameDay, startOfDay } from "date-fns";
 import { vi } from "date-fns/locale";
-import { Calendar, ChevronLeft, ChevronRight, Repeat } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,8 @@ interface FamilyEvent {
 interface EventTimelineProps {
   events: FamilyEvent[];
 }
+
+type EventStatus = 'past' | 'current' | 'upcoming';
 
 const EventTimeline = ({ events }: EventTimelineProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -40,6 +42,44 @@ const EventTimeline = ({ events }: EventTimelineProps) => {
     }
   };
 
+  // Get event status based on date
+  const getEventStatus = (displayDate: Date): EventStatus => {
+    const today = startOfDay(new Date());
+    const eventDay = startOfDay(displayDate);
+    
+    if (isSameDay(eventDay, today)) {
+      return 'current';
+    } else if (isBefore(eventDay, today)) {
+      return 'past';
+    } else {
+      return 'upcoming';
+    }
+  };
+
+  // Get status-based styles
+  const getStatusStyles = (status: EventStatus) => {
+    switch (status) {
+      case 'past':
+        return {
+          circle: 'bg-muted text-muted-foreground',
+          card: 'border-muted bg-muted/30 opacity-60',
+          label: 'text-muted-foreground',
+        };
+      case 'current':
+        return {
+          circle: 'bg-gradient-to-br from-gold to-gold/80 text-accent-foreground ring-4 ring-gold/30',
+          card: 'border-gold bg-gold/5 shadow-lg',
+          label: 'text-gold',
+        };
+      case 'upcoming':
+        return {
+          circle: 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground',
+          card: 'border-border bg-background',
+          label: 'text-primary',
+        };
+    }
+  };
+
   // Process events - for recurring events, calculate next occurrence
   const processedEvents = events.map(event => {
     const eventDate = parseISO(event.event_date);
@@ -59,10 +99,13 @@ const EventTimeline = ({ events }: EventTimelineProps) => {
       }
     }
     
+    const status = getEventStatus(displayDate);
+    
     return {
       ...event,
       displayDate,
-      originalDate: eventDate
+      originalDate: eventDate,
+      status
     };
   }).sort((a, b) => a.displayDate.getTime() - b.displayDate.getTime());
 
@@ -128,61 +171,62 @@ const EventTimeline = ({ events }: EventTimelineProps) => {
             className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide scroll-smooth px-2"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {processedEvents.map((event, index) => (
-              <div 
-                key={event.id} 
-                className="flex-shrink-0 w-64 md:w-72"
-              >
-                <div className="relative group">
-                  {/* Timeline Line */}
-                  <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2">
-                    <div className="h-8 w-px bg-gradient-to-b from-transparent to-primary/50" />
-                  </div>
-                  
-                  {/* Date Circle */}
-                  <div className="relative flex flex-col items-center">
-                    <div className="relative z-10 flex h-16 w-16 flex-col items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg transition-transform group-hover:scale-110">
-                      <span className="text-xl font-bold leading-none">
-                        {getDay(event.displayDate)}
-                      </span>
-                      <span className="text-[10px] uppercase tracking-wider opacity-90">
-                        Tháng {format(event.displayDate, 'M')}
-                      </span>
+            {processedEvents.map((event) => {
+              const styles = getStatusStyles(event.status);
+              
+              return (
+                <div 
+                  key={event.id} 
+                  className="flex-shrink-0 w-64 md:w-72"
+                >
+                  <div className="relative group">
+                    {/* Timeline Line */}
+                    <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2">
+                      <div className={cn(
+                        "h-8 w-px bg-gradient-to-b from-transparent",
+                        event.status === 'current' ? 'to-gold/50' : 
+                        event.status === 'past' ? 'to-muted' : 'to-primary/50'
+                      )} />
                     </div>
                     
-                    {/* Recurring Indicator */}
-                    {event.is_recurring && (
-                      <div className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-gold text-accent-foreground shadow-md" title="Hàng năm">
-                        <Repeat className="h-3 w-3" />
+                    {/* Date Circle */}
+                    <div className="relative flex flex-col items-center">
+                      <div className={cn(
+                        "relative z-10 flex h-16 w-16 flex-col items-center justify-center rounded-full shadow-lg transition-transform group-hover:scale-110",
+                        styles.circle
+                      )}>
+                        <span className="text-xl font-bold leading-none">
+                          {getDay(event.displayDate)}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider opacity-90">
+                          Tháng {format(event.displayDate, 'M')}
+                        </span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Event Card */}
-                  <div className="mt-4 rounded-xl bg-background p-4 shadow-md transition-all duration-300 group-hover:shadow-elegant group-hover:-translate-y-1 border">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-wider text-primary">
-                        {getMonthName(event.displayDate)} {format(event.displayDate, 'yyyy')}
-                      </span>
                     </div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold line-clamp-2">
-                      {event.title}
-                    </h3>
-                    {event.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {event.description}
-                      </p>
-                    )}
-                    {event.is_recurring && (
-                      <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Repeat className="h-3 w-3" />
-                        <span>Lặp lại hàng năm</span>
+
+                    {/* Event Card */}
+                    <div className={cn(
+                      "mt-4 rounded-xl p-4 shadow-md transition-all duration-300 group-hover:shadow-elegant group-hover:-translate-y-1 border",
+                      styles.card
+                    )}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className={cn("text-xs font-medium uppercase tracking-wider", styles.label)}>
+                          {getMonthName(event.displayDate)} {format(event.displayDate, 'yyyy')}
+                        </span>
                       </div>
-                    )}
+                      <h3 className="mb-2 font-serif text-lg font-semibold line-clamp-2">
+                        {event.title}
+                      </h3>
+                      {event.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {event.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
