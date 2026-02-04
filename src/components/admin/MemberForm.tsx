@@ -42,7 +42,7 @@ const memberSchema = z.object({
   bio: z.string().max(1000).optional(),
   generation: z.number().min(1).max(20),
   is_alive: z.boolean(),
-  lineage_type: z.enum(["primary", "spouse", "maternal"]),
+  lineage_type: z.enum(["primary", "maternal"]),
   father_id: z.string().optional(),
   mother_id: z.string().optional(),
   spouse_id: z.string().optional(),
@@ -116,11 +116,11 @@ const MemberForm = ({
 
   useEffect(() => {
     if (member) {
-      let lineageTypeValue: "primary" | "spouse" | "maternal" = "primary";
-      if ((member as any).lineage_type) {
-        lineageTypeValue = (member as any).lineage_type;
+      let lineageTypeValue: "primary" | "maternal" = "primary";
+      if ((member as any).lineage_type === "maternal" || (member as any).lineage_type === "spouse") {
+        lineageTypeValue = "maternal";
       } else if (member.is_primary_lineage === false) {
-        lineageTypeValue = "spouse";
+        lineageTypeValue = "maternal";
       }
       
       reset({
@@ -512,7 +512,7 @@ const MemberForm = ({
                 <Label>Phân loại dòng tộc</Label>
                 <Select
                   value={lineageType}
-                  onValueChange={(value) => setValue("lineage_type", value as "primary" | "spouse" | "maternal")}
+                  onValueChange={(value) => setValue("lineage_type", value as "primary" | "maternal")}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -521,13 +521,7 @@ const MemberForm = ({
                     <SelectItem value="primary">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded border-2 border-lineage-primary" />
-                        <span>Họ Hà (huyết thống chính)</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="spouse">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded border-2 border-dashed border-lineage-secondary-light" />
-                        <span>Dâu/Rể (kết hôn vào họ)</span>
+                        <span>Họ Hà (Huyết Thống Chính)</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="maternal">
