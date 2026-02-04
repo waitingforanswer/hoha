@@ -21,8 +21,8 @@ const FemaleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// lineage_type: 'primary' = họ Hà, 'spouse' = dâu/rể, 'maternal' = con ngoại tộc (mẹ họ Hà, theo họ bố)
-type LineageType = 'primary' | 'spouse' | 'maternal';
+// lineage_type: 'primary' = họ Hà (huyết thống chính), 'maternal' = khác
+type LineageType = 'primary' | 'maternal';
 
 interface FamilyMember {
   id: string;
@@ -78,46 +78,18 @@ export function FamilyTreeNode({ member, isSpouse = false, wifeOrder }: FamilyTr
   const isMale = member.gender === "male";
   const isFemale = member.gender === "female";
   
-  // Determine lineage type
+  // Determine lineage type - only 2 options: primary or maternal (khác)
   const rawLineageType = member.lineage_type || 
-    (member.is_primary_lineage === false ? 'spouse' : 'primary');
-  const lineageType: LineageType = ['primary', 'spouse', 'maternal'].includes(rawLineageType) 
-    ? rawLineageType as LineageType 
-    : 'primary';
+    (member.is_primary_lineage === false ? 'maternal' : 'primary');
+  // Map 'spouse' to 'maternal' for backward compatibility
+  const lineageType: LineageType = rawLineageType === 'primary' ? 'primary' : 'maternal';
   
   const isPrimaryLineage = lineageType === 'primary';
-  const isMaternalLineage = lineageType === 'maternal';
   
-  // Determine role label for non-primary lineage
-  const getRoleLabel = () => {
-    // Show wife order label if multiple wives
-    if (wifeOrder !== undefined && wifeOrder > 0) {
-      return getWifeLabel(wifeOrder);
-    }
-    
-    if (isPrimaryLineage) return null;
-    if (isMaternalLineage) return "Khác";
-    return isMale ? "Rể" : "Dâu";
-  };
-  
-  const roleLabel = getRoleLabel();
-  
-  // Get border color based on lineage type
+  // Get border color based on lineage type - simplified to 2 styles only
   const getBorderClass = () => {
-    if (isMaternalLineage) return "border-2 border-foreground/40";
     if (isPrimaryLineage) return "border-2 border-lineage-primary shadow-sm";
-    return "border-2 border-lineage-secondary-light border-dashed";
-  };
-
-  // Get wife order badge color
-  const getWifeBadgeClass = () => {
-    if (!wifeOrder) return "";
-    switch (wifeOrder) {
-      case 1: return "bg-pink-500 text-white";
-      case 2: return "bg-purple-500 text-white";
-      case 3: return "bg-indigo-500 text-white";
-      default: return "bg-slate-500 text-white";
-    }
+    return "border-2 border-foreground/40"; // Style for "Khác"
   };
   
   return (
@@ -148,21 +120,22 @@ export function FamilyTreeNode({ member, isSpouse = false, wifeOrder }: FamilyTr
         )}
       </div>
 
-      {/* Role label for Dâu/Rể/Khác/Vợ cả/Vợ hai - top left */}
-      {roleLabel && (
+      {/* Wife order label - Vợ cả/Vợ hai only for multiple wives */}
+      {wifeOrder !== undefined && wifeOrder > 0 && (
         <div className={cn(
           "absolute -top-2 -left-2 text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm",
-          wifeOrder ? getWifeBadgeClass() : 
-          isMaternalLineage ? "bg-muted text-foreground border border-foreground/30" : "bg-lineage-secondary text-white"
+          wifeOrder === 1 ? "bg-pink-500 text-white" : 
+          wifeOrder === 2 ? "bg-purple-500 text-white" : 
+          wifeOrder === 3 ? "bg-indigo-500 text-white" : "bg-slate-500 text-white"
         )}>
-          {roleLabel}
+          {getWifeLabel(wifeOrder)}
         </div>
       )}
       
       <Link to={`/thanh-vien/${member.id}`} className="group flex-shrink-0">
         <Avatar className={cn(
           "h-14 w-14 border-2 transition-transform group-hover:scale-105",
-          isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : isMaternalLineage ? "border-foreground/30" : "border-lineage-secondary-light"
+          isDeceased ? "border-muted grayscale" : isPrimaryLineage ? "border-lineage-primary-light" : "border-foreground/30"
         )}>
           <AvatarImage 
             src={member.avatar_url || undefined} 
@@ -174,9 +147,7 @@ export function FamilyTreeNode({ member, isSpouse = false, wifeOrder }: FamilyTr
               ? "bg-muted text-muted-foreground" 
               : isPrimaryLineage 
                 ? "bg-lineage-primary/10 text-lineage-primary" 
-                : isMaternalLineage
-                  ? "bg-muted text-foreground"
-                  : "bg-lineage-secondary/10 text-lineage-secondary"
+                : "bg-muted text-foreground"
           )}>
             <User className="h-6 w-6" />
           </AvatarFallback>
@@ -189,7 +160,7 @@ export function FamilyTreeNode({ member, isSpouse = false, wifeOrder }: FamilyTr
           className={cn(
             "text-sm hover:underline block text-center leading-snug",
             "line-clamp-2 min-h-[2.25rem]",
-            isPrimaryLineage ? "font-semibold text-lineage-primary" : isMaternalLineage ? "font-medium text-foreground" : "font-medium text-foreground",
+            isPrimaryLineage ? "font-semibold text-lineage-primary" : "font-medium text-foreground",
             isDeceased && "opacity-70"
           )}
         >
