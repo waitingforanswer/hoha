@@ -200,6 +200,48 @@ const MemberForm = ({
     input?.click();
   };
 
+  const uploadAvatarViaEdgeFunction = async (memberId: string, file: File): Promise<string | null> => {
+    const token = getAuthToken();
+    if (!token) return null;
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result as string;
+          
+          const response = await supabase.functions.invoke("manage-family-member", {
+            headers: { Authorization: `Bearer ${token}` },
+            body: {
+              action: "upload_avatar",
+              memberId,
+              avatarData: base64Data,
+            },
+          });
+
+          if (response.error) {
+            console.error("Upload error:", response.error);
+            reject(response.error);
+            return;
+          }
+
+          if (response.data?.error) {
+            console.error("Upload error:", response.data.error);
+            reject(new Error(response.data.error));
+            return;
+          }
+
+          resolve(response.data?.avatar_url || null);
+        } catch (err) {
+          console.error("Upload error:", err);
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const uploadAvatar = async (memberId: string): Promise<string | null> => {
     // If avatar was removed
     if (!avatarPreview && !avatarFile) {
@@ -211,21 +253,8 @@ const MemberForm = ({
       return member?.avatar_url || null;
     }
 
-    const fileExt = "jpg";
-    const filePath = `${memberId}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, avatarFile, { upsert: true });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      return null;
-    }
-
-    const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    // Add timestamp to bust cache
-    return `${data.publicUrl}?t=${Date.now()}`;
+    // Upload via Edge Function (works for both admin and sub-admin)
+    return uploadAvatarViaEdgeFunction(memberId, avatarFile);
   };
 
   const onSubmit = async (data: MemberFormData) => {
