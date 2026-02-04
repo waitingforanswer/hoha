@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decode } from "https://deno.land/std@0.203.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, memberId, memberData, marriageData, marriageId } = body;
+    const { action, memberId, memberData, marriageData, marriageId, avatarData } = body;
 
     let result;
 
@@ -300,6 +301,62 @@ Deno.serve(async (req) => {
         
         result = { success: true };
         console.log("Deleted marriage:", marriageId);
+        break;
+
+      case "upload_avatar":
+        if (!memberId || !avatarData) {
+          return new Response(
+            JSON.stringify({ error: "Missing memberId or avatarData for upload_avatar" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        try {
+          // Decode base64 image data
+          const base64Data = avatarData.replace(/^data:image\/\w+;base64,/, "");
+          const imageBuffer = decode(base64Data);
+          
+          const filePath = `${memberId}.jpg`;
+          
+          // Upload to storage using service role (bypasses RLS)
+          const { error: uploadError } = await supabaseAdmin.storage
+            .from("avatars")
+            .upload(filePath, imageBuffer, {
+              contentType: "image/jpeg",
+              upsert: true,
+            });
+          
+          if (uploadError) {
+            console.error("Avatar upload error:", uploadError);
+            throw uploadError;
+          }
+          
+          // Get public URL
+          const { data: urlData } = supabaseAdmin.storage
+            .from("avatars")
+            .getPublicUrl(filePath);
+          
+          const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+          
+          // Update member with new avatar URL
+          const { data: updatedMember, error: updateError } = await supabaseAdmin
+            .from("family_members")
+            .update({ avatar_url: avatarUrl })
+            .eq("id", memberId)
+            .select()
+            .single();
+          
+          if (updateError) throw updateError;
+          
+          result = { avatar_url: avatarUrl, member: updatedMember };
+          console.log("Uploaded avatar for member:", memberId);
+        } catch (uploadErr: any) {
+          console.error("Avatar upload failed:", uploadErr);
+          return new Response(
+            JSON.stringify({ error: uploadErr.message || "Failed to upload avatar" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         break;
 
       default:
