@@ -1,27 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { FamilyTreeNode } from "./FamilyTreeNode";
-import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move, Users, Layers } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move, Users, Layers, Heart } from "lucide-react";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// Gender icons as simple components
-const MaleIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="10" cy="14" r="5"/>
-    <line x1="19" y1="5" x2="13.6" y2="10.4"/>
-    <line x1="19" y1="5" x2="14" y2="5"/>
-    <line x1="19" y1="5" x2="19" y2="10"/>
-  </svg>
-);
-
-const FemaleIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="8" r="5"/>
-    <line x1="12" y1="13" x2="12" y2="21"/>
-    <line x1="9" y1="18" x2="15" y2="18"/>
-  </svg>
+// Heart connector component for marriage link
+const HeartConnector = ({ className }: { className?: string }) => (
+  <div className={cn("flex items-center justify-center", className)}>
+    <Heart className="h-5 w-5 text-destructive fill-destructive" />
+  </div>
 );
 
 interface FamilyMember {
@@ -513,7 +502,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
               "absolute top-0 left-1/2 -translate-x-1/2",
               childrenContinueBloodline 
                 ? "h-[3px] bg-lineage-primary" 
-                : "h-0.5 border-t-2 border-dashed border-lineage-faded"
+                : "h-[2px] bg-foreground/30"
             )}
             style={{ width: `calc(100% - 80px)` }}
           />
@@ -529,10 +518,10 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
                 <div className={cn(
                   "absolute top-0 left-1/2 -translate-x-1/2 h-3",
                   isOtherType 
-                    ? "w-[1px] bg-foreground/50" 
+                    ? "w-[2px] bg-foreground/30" 
                     : childrenContinueBloodline 
                       ? "w-[3px] bg-lineage-primary" 
-                      : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+                      : "w-[2px] bg-foreground/30"
                 )} />
                 {renderFamilyTree(child, processedIds)}
               </div>
@@ -592,14 +581,24 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
           {/* Husband card */}
           <FamilyTreeNode member={primaryMember} />
           
-          {/* Vertical dashed line from husband going down */}
-          <div className="w-0.5 h-6 border-l-2 border-dashed border-lineage-marriage" />
+          {/* Vertical line from husband to horizontal connector */}
+          <div className={cn(
+            "h-4",
+            childrenContinueBloodline 
+              ? "w-[3px] bg-lineage-primary" 
+              : "w-[2px] bg-foreground/30"
+          )} />
           
-          {/* Horizontal line connecting to wives */}
+          {/* Horizontal line connecting to wives with heart icons */}
           <div className="flex items-start relative">
             {/* Horizontal connector spanning all wives */}
             <div 
-              className="absolute top-0 left-0 right-0 h-0.5 border-t-2 border-dashed border-lineage-marriage"
+              className={cn(
+                "absolute top-[10px] left-0 right-0",
+                childrenContinueBloodline 
+                  ? "h-[3px] bg-lineage-primary" 
+                  : "h-[2px] bg-foreground/30"
+              )}
             />
             
             {/* Wives with their children */}
@@ -609,8 +608,16 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
                 
                 return (
                   <div key={spouse.id} className="flex flex-col items-center">
-                    {/* Vertical line from horizontal to wife */}
-                    <div className="w-0.5 h-6 border-l-2 border-dashed border-lineage-marriage" />
+                    {/* Heart icon as connector */}
+                    <HeartConnector className="z-10 bg-background px-1" />
+                    
+                    {/* Vertical line from heart to wife */}
+                    <div className={cn(
+                      "h-3",
+                      childrenContinueBloodline 
+                        ? "w-[3px] bg-lineage-primary" 
+                        : "w-[2px] bg-foreground/30"
+                    )} />
                     
                     {/* Wife card */}
                     <FamilyTreeNode 
@@ -627,7 +634,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
                           "h-6",
                           childrenContinueBloodline 
                             ? "w-[3px] bg-lineage-primary" 
-                            : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+                            : "w-[2px] bg-foreground/30"
                         )} />
                         
                         {renderChildren(motherChildren, processedIds, childrenContinueBloodline)}
@@ -646,7 +653,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
                 "h-6",
                 childrenContinueBloodline 
                   ? "w-[3px] bg-lineage-primary" 
-                  : "w-0.5 border-l-2 border-dashed border-lineage-faded"
+                  : "w-[2px] bg-foreground/30"
               )} />
               {renderChildren(childrenByMother.get(null)!, processedIds, childrenContinueBloodline)}
             </div>
@@ -657,43 +664,41 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
     
     // CASE: Single spouse or no spouse - horizontal layout (original)
     return (
-      <div key={primaryMember.id} className="flex flex-col items-center gap-3">
+      <div key={primaryMember.id} className="flex flex-col items-center gap-1">
         {/* Couple display */}
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-1">
           <FamilyTreeNode member={primaryMember} />
           
           {spouses.length > 0 && (
-            <div className="flex items-center">
-              {/* Marriage connector - dashed gray line */}
-              <div className="w-6 h-0.5 border-t-2 border-dashed border-lineage-marriage" />
+            <>
+              {/* Heart icon as marriage connector */}
+              <HeartConnector />
               <FamilyTreeNode 
                 member={spouses[0].spouse} 
                 isSpouse 
               />
-            </div>
+            </>
           )}
         </div>
         
         {/* Children */}
         {childrenByMother.size > 0 && (
-          <div className="relative">
-            {/* Connector line from parent to children */}
+          <div className="relative flex flex-col items-center">
+            {/* Connector line from heart (center of couple) to children */}
             <div 
               className={cn(
-                "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full",
+                "h-6",
                 childrenContinueBloodline 
-                  ? "w-[3px] h-3 bg-lineage-primary" 
-                  : "w-0.5 h-3 border-l-2 border-dashed border-lineage-faded"
+                  ? "w-[3px] bg-lineage-primary" 
+                  : "w-[2px] bg-foreground/30"
               )}
             />
             
-            <div className="pt-3">
-              {renderChildren(
-                Array.from(childrenByMother.values()).flat(), 
-                processedIds, 
-                childrenContinueBloodline
-              )}
-            </div>
+            {renderChildren(
+              Array.from(childrenByMother.values()).flat(), 
+              processedIds, 
+              childrenContinueBloodline
+            )}
           </div>
         )}
       </div>
