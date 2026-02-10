@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { FamilyTreeNode } from "./FamilyTreeNode";
-import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move, Users, Layers, Heart } from "lucide-react";
-import { useMemo } from "react";
+import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize, Move, Users, Layers, Heart, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Badge } from "@/components/ui/badge";
 
 // Heart connector component for marriage link
 const HeartConnector = ({ className }: { className?: string }) => (
@@ -158,7 +158,7 @@ function getWifeLabel(order: number): string {
 
 export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps) {
   const isMobile = useIsMobile();
-  const [zoom, setZoom] = useState(0.8); // Default to 80% zoom
+  const [zoom, setZoom] = useState(0.8);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -166,6 +166,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [hasInitializedView, setHasInitializedView] = useState(false);
+  const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(new Set());
   
   // Touch gesture states
   const [isTouching, setIsTouching] = useState(false);
@@ -193,6 +194,44 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
       totalGenerations: generations.size
     };
   }, [members]);
+
+  // Count all descendants of a member
+  const countDescendants = useCallback((memberId: string): number => {
+    const children = members.filter(m => m.father_id === memberId || m.mother_id === memberId);
+    let count = children.length;
+    for (const child of children) {
+      count += countDescendants(child.id);
+    }
+    return count;
+  }, [members]);
+
+  // Check if a member has any children
+  const hasChildren = useCallback((memberId: string): boolean => {
+    return members.some(m => m.father_id === memberId || m.mother_id === memberId);
+  }, [members]);
+
+  // Toggle collapse state for a branch
+  const toggleCollapse = useCallback((memberId: string) => {
+    setCollapsedBranches(prev => {
+      const next = new Set(prev);
+      if (next.has(memberId)) {
+        next.delete(memberId);
+      } else {
+        next.add(memberId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Auto-collapse branches from generation 7+
+  useEffect(() => {
+    const gen7PlusParents = members.filter(m => 
+      m.generation >= 7 && hasChildren(m.id) && m.gender === 'male'
+    );
+    if (gen7PlusParents.length > 0) {
+      setCollapsedBranches(new Set(gen7PlusParents.map(m => m.id)));
+    }
+  }, [members, hasChildren]);
   
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.2, 3));
@@ -533,6 +572,70 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
     );
   };
 
+  // Collapse toggle button component
+  const renderCollapseToggle = (memberId: string) => {
+    if (!hasChildren(memberId)) return null;
+    const isCollapsed = collapsedBranches.has(memberId);
+    const descendantCount = countDescendants(memberId);
+    
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); toggleCollapse(memberId); }}
+        className={cn(
+          "flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors",
+          "border bg-background hover:bg-accent shadow-sm cursor-pointer z-10",
+          isCollapsed ? "text-primary border-primary/40" : "text-muted-foreground border-border"
+        )}
+      >
+        {isCollapsed ? (
+          <>
+            <ChevronRight className="h-3 w-3" />
+            <span>+{descendantCount}</span>
+          </>
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )}
+      </button>
+    );
+  };
+
+  // Render children section with collapse support
+  const renderChildrenSection = (
+    children: FamilyMember[],
+    processedIds: Set<string>,
+    childrenContinueBloodline: boolean,
+    parentId: string
+  ): React.ReactNode => {
+    if (children.length === 0) return null;
+    const isCollapsed = collapsedBranches.has(parentId);
+
+    return (
+      <div className="flex flex-col items-center">
+        {/* Vertical line from couple to children */}
+        <div className={cn(
+          "h-3",
+          childrenContinueBloodline 
+            ? "w-[3px] bg-lineage-primary" 
+            : "w-[2px] bg-foreground/30"
+        )} />
+        {/* Collapse toggle */}
+        {renderCollapseToggle(parentId)}
+        
+        {!isCollapsed && (
+          <div className="flex flex-col items-center">
+            <div className={cn(
+              "h-3",
+              childrenContinueBloodline 
+                ? "w-[3px] bg-lineage-primary" 
+                : "w-[2px] bg-foreground/30"
+            )} />
+            {renderChildren(children, processedIds, childrenContinueBloodline)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Recursive function to render family tree with multiple spouses support
   // Layout: Husband on top, wives stacked vertically below with children from each wife
   const renderFamilyTree = (primaryMember: FamilyMember, processedIds: Set<string>): React.ReactNode => {
@@ -629,15 +732,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
                     {/* Children of this wife */}
                     {motherChildren.length > 0 && (
                       <div className="flex flex-col items-center mt-1">
-                        {/* Vertical line from wife to children */}
-                        <div className={cn(
-                          "h-6",
-                          childrenContinueBloodline 
-                            ? "w-[3px] bg-lineage-primary" 
-                            : "w-[2px] bg-foreground/30"
-                        )} />
-                        
-                        {renderChildren(motherChildren, processedIds, childrenContinueBloodline)}
+                        {renderChildrenSection(motherChildren, processedIds, childrenContinueBloodline, primaryMember.id)}
                       </div>
                     )}
                   </div>
@@ -649,13 +744,7 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
           {/* Children with unknown mother */}
           {childrenByMother.get(null) && childrenByMother.get(null)!.length > 0 && (
             <div className="flex flex-col items-center mt-4">
-              <div className={cn(
-                "h-6",
-                childrenContinueBloodline 
-                  ? "w-[3px] bg-lineage-primary" 
-                  : "w-[2px] bg-foreground/30"
-              )} />
-              {renderChildren(childrenByMother.get(null)!, processedIds, childrenContinueBloodline)}
+              {renderChildrenSection(childrenByMother.get(null)!, processedIds, childrenContinueBloodline, primaryMember.id)}
             </div>
           )}
         </div>
@@ -684,20 +773,11 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
         {/* Children */}
         {childrenByMother.size > 0 && (
           <div className="relative flex flex-col items-center">
-            {/* Connector line from heart (center of couple) to children */}
-            <div 
-              className={cn(
-                "h-6",
-                childrenContinueBloodline 
-                  ? "w-[3px] bg-lineage-primary" 
-                  : "w-[2px] bg-foreground/30"
-              )}
-            />
-            
-            {renderChildren(
+            {renderChildrenSection(
               Array.from(childrenByMother.values()).flat(), 
               processedIds, 
-              childrenContinueBloodline
+              childrenContinueBloodline,
+              primaryMember.id
             )}
           </div>
         )}
@@ -756,6 +836,31 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
         >
         {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
         </Button>
+        <div className="w-px h-6 bg-border mx-1" />
+        {collapsedBranches.size > 0 ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCollapsedBranches(new Set())}
+            title="Mở rộng tất cả"
+            className="text-xs"
+          >
+            Mở rộng tất cả
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const parentsWithChildren = members.filter(m => m.generation >= 7 && hasChildren(m.id) && m.gender === 'male');
+              setCollapsedBranches(new Set(parentsWithChildren.map(m => m.id)));
+            }}
+            title="Thu gọn từ đời 7"
+            className="text-xs"
+          >
+            Thu gọn
+          </Button>
+        )}
         <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
           <Move className="h-3 w-3" />
           <span className="hidden sm:inline">Giữ chuột để kéo | Ctrl/⌘ + Scroll để zoom</span>
