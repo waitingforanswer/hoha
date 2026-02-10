@@ -233,12 +233,31 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
     }
   }, [members, hasChildren]);
   
+  // Zoom toward/from the center of the visible viewport
+  const zoomAtCenter = useCallback((newZoom: number) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    setZoom(prev => {
+      const clamped = Math.max(0.3, Math.min(3, newZoom));
+      const scale = clamped / prev;
+      // Adjust position so the point under the viewport center stays fixed
+      setPosition(pos => ({
+        x: centerX - scale * (centerX - pos.x),
+        y: centerY - scale * (centerY - pos.y),
+      }));
+      return clamped;
+    });
+  }, []);
+
   const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.2, 3));
+    zoomAtCenter(zoom + 0.2);
   };
   
   const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.2, 0.3));
+    zoomAtCenter(zoom - 0.2);
   };
   
   const handleResetZoom = () => {
@@ -304,14 +323,28 @@ export function FamilyTreeView({ members, marriages = [] }: FamilyTreeViewProps)
   
   // Handle mouse wheel zoom - requires Ctrl/Cmd key
   const handleWheel = useCallback((e: WheelEvent) => {
-    // Only zoom if Ctrl (Windows) or Meta/Cmd (Mac) is held
     if (!e.ctrlKey && !e.metaKey) {
-      return; // Allow normal scrolling
+      return;
     }
     
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom(prev => Math.max(0.3, Math.min(3, prev + delta)));
+    // Zoom toward the cursor position
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cursorX = e.clientX - rect.left;
+    const cursorY = e.clientY - rect.top;
+
+    setZoom(prev => {
+      const newZoom = Math.max(0.3, Math.min(3, prev + delta));
+      const scale = newZoom / prev;
+      setPosition(pos => ({
+        x: cursorX - scale * (cursorX - pos.x),
+        y: cursorY - scale * (cursorY - pos.y),
+      }));
+      return newZoom;
+    });
   }, []);
   
   // Handle mouse drag
