@@ -35,7 +35,8 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Pencil, Trash2, QrCode, User, ArrowUp, ArrowDown, ArrowUpDown, Upload } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, QrCode, User, ArrowUp, ArrowDown, ArrowUpDown, Upload, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import type { Tables } from "@/integrations/supabase/types";
 import { format } from "date-fns";
 
@@ -285,6 +286,42 @@ const AdminMembers = () => {
     }
   };
 
+  const handleExport = () => {
+    if (members.length === 0) {
+      toast({ title: "Không có dữ liệu", description: "Chưa có thành viên nào để xuất", variant: "destructive" });
+      return;
+    }
+
+    const exportData = members.map((m) => ({
+      "Họ và tên (*)": m.full_name,
+      "Giới tính (nam/nữ)": m.gender === "male" ? "nam" : m.gender === "female" ? "nữ" : "",
+      "Ngày sinh (DD/MM/YYYY)": m.birth_date ? format(new Date(m.birth_date), "dd/MM/yyyy") : "",
+      "Ngày mất (DD/MM/YYYY)": m.death_date ? format(new Date(m.death_date), "dd/MM/yyyy") : "",
+      "Còn sống (có/không)": m.is_alive ? "có" : "không",
+      "Đời thứ": m.generation,
+      "Số điện thoại": m.phone || "",
+      "Email": m.email || "",
+      "Nghề nghiệp": m.occupation || "",
+      "Địa chỉ": m.address || "",
+      "Tiểu sử": m.bio || "",
+      "Loại dòng (primary/married_in)": m.lineage_type || "primary",
+      "Dòng chính (có/không)": m.is_primary_lineage ? "có" : "không",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    ws["!cols"] = [
+      { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
+      { wch: 10 }, { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 25 },
+      { wch: 30 }, { wch: 20 }, { wch: 15 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Thành viên");
+    XLSX.writeFile(wb, `danh_sach_thanh_vien_${format(new Date(), "yyyyMMdd")}.xlsx`);
+
+    toast({ title: "Xuất thành công", description: `Đã xuất ${members.length} thành viên ra file Excel` });
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -296,6 +333,10 @@ const AdminMembers = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExport} disabled={loading || members.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Export Excel
+            </Button>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />
               Import Excel
