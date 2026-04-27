@@ -132,7 +132,7 @@ const App = () => (
                 <Route 
                   path="/admin/posts" 
                   element={
-                    <AdminProtectedRoute requireAdmin>
+                    <AdminProtectedRoute requirePermission="MANAGE_POSTS">
                       <PostsManagement />
                     </AdminProtectedRoute>
                   } 
